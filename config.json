@@ -1,0 +1,34 @@
+﻿{
+    "AutomationEnabled":  true,
+    "AC":  {
+               "Hz":  180,
+               "Brightness":  90
+           },
+    "DC":  {
+               "Hz":  60,
+               "Brightness":  40
+           },
+    "Presets":  [
+                    {
+                        "Name":  "Full Power",
+                        "Hz":  180,
+                        "Brightness":  90
+                    },
+                    {
+                        "Name":  "Battery Gaming",
+                        "Hz":  60,
+                        "Brightness":  40
+                    },
+                    {
+                        "Name":  "Battery Reading",
+                        "Hz":  60,
+                        "Brightness":  25
+                    },
+                    {
+                        "Name":  "Max Endurance",
+                        "Hz":  60,
+                        "Brightness":  15
+                    }
+                ],
+    "ManageBrightness":  true
+}

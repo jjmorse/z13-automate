@@ -1,0 +1,12 @@
+# Runtime output / logs — regenerated on every run
+*.log
+wu-*-result.txt
+
+# Backups created by the scripts
+*.bak
+*.bak-*
+user-path-backup-*.txt
+
+# OS cruft
+Thumbs.db
+desktop.ini
