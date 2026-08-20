@@ -68,6 +68,11 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 | `Restore-ClaudeConfig.ps1` | Restore config from a known-good backup. |
 | `Restore-And-Lock-ClaudeConfig.ps1` | Restore, then lock the file read-only as a safety net. |
 
+### Bluetooth
+| File | Role |
+|---|---|
+| `Reset-Bluetooth.ps1` | Cycle the MediaTek Bluetooth adapter to recover a dropped BLE device (e.g. a Surface Slim Pen whose link won't reconnect after charging). Self-elevating; pair it with a desktop shortcut for one-click use. |
+
 ## How the automation triggers
 
 The scheduled task fires on **Kernel-Power event 105** (power source changed) and **107** (resume from sleep), plus **at logon**. Event 105 alone isn't enough: if the machine boots or wakes *already* on battery there's no change event, so the logon trigger and event 107 cover those cases. Brightness writes use a short settle-delay to avoid a race where a write during the AC↔DC transition gets attributed to the wrong power source.
