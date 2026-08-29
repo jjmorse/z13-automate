@@ -73,6 +73,11 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 |---|---|
 | `Reset-Bluetooth.ps1` | Cycle the MediaTek Bluetooth adapter to recover a dropped BLE device (e.g. a Surface Slim Pen whose link won't reconnect after charging). Self-elevating; pair it with a desktop shortcut for one-click use. |
 
+### Input
+| File | Role |
+|---|---|
+| `ClaudeEnterFix.ahk` | AutoHotkey v2 script that remaps plain Enter to Ctrl+Enter while the Claude app is focused, working around the desktop app's tablet-mode "Enter = newline" bug (Shift+Enter still makes a newline). Requires AutoHotkey v2; add to startup to load at login. |
+
 ## How the automation triggers
 
 The scheduled task fires on **Kernel-Power event 105** (power source changed) and **107** (resume from sleep), plus **at logon**. Event 105 alone isn't enough: if the machine boots or wakes *already* on battery there's no change event, so the logon trigger and event 107 cover those cases. Brightness writes use a short settle-delay to avoid a race where a write during the AC↔DC transition gets attributed to the wrong power source.
