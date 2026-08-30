@@ -78,6 +78,11 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 |---|---|
 | `ClaudeEnterFix.ahk` | AutoHotkey v2 script that remaps plain Enter to Ctrl+Enter while the Claude app is focused, working around the desktop app's tablet-mode "Enter = newline" bug (Shift+Enter still makes a newline). Requires AutoHotkey v2; add to startup to load at login. |
 
+### Audio
+| File | Role |
+|---|---|
+| `EqualizerAPO/` | Backup + docs for the per-device speaker EQ: Equalizer APO installed on the built-in Realtek speakers only, so the reddit-tuned Z13 speaker boost applies to the speakers automatically while headphones stay untouched (no manual switching). See `EqualizerAPO/README.md`. |
+
 ## How the automation triggers
 
 The scheduled task fires on **Kernel-Power event 105** (power source changed) and **107** (resume from sleep), plus **at logon**. Event 105 alone isn't enough: if the machine boots or wakes *already* on battery there's no change event, so the logon trigger and event 107 cover those cases. Brightness writes use a short settle-delay to avoid a race where a write during the AC↔DC transition gets attributed to the wrong power source.
