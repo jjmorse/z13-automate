@@ -1,0 +1,4 @@
+# Z13 built-in speaker EQ (reddit profile in peace.txt).
+# Equalizer APO is installed on Speakers (Realtek) ONLY, so this applies to the speakers;
+# the WH-1000XM4 and all other outputs are untouched. Peace does not autostart, so this persists.
+Include: peace.txt
