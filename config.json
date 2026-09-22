@@ -2,7 +2,7 @@
     "AutomationEnabled":  true,
     "AC":  {
                "Hz":  180,
-               "Brightness":  90
+               "Brightness":  100
            },
     "DC":  {
                "Hz":  60,
@@ -12,7 +12,7 @@
                     {
                         "Name":  "Full Power",
                         "Hz":  180,
-                        "Brightness":  90
+                        "Brightness":  100
                     },
                     {
                         "Name":  "Battery Gaming",
