@@ -48,7 +48,7 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 |---|---|
 | `Z13Display.psm1` | Shared module — display enumeration, refresh/brightness setters, profile logic. |
 | `Apply-DisplayPower.ps1` | Applies the correct AC/DC profile; the action the scheduled task runs. |
-| `Z13Tray.ps1` | System-tray app — shows current Hz, offers preset switching (single-instance). |
+| `Z13Tray.ps1` | System-tray app — shows current Hz, offers preset switching (single-instance), and is the primary trigger for automatic profile switching (reacts to power-source-change notifications, with a 5s timer as a fallback). |
 | `Start-Z13Tray.vbs` | Launches the tray app windowless at logon. |
 | `config.json` | All user-tunable settings (above). |
 | `Install.ps1` | Registers the scheduled task and the startup shortcut. Run elevated. |
@@ -85,7 +85,7 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 
 ## How the automation triggers
 
-The scheduled task fires on **Kernel-Power event 105** (power source changed) and **107** (resume from sleep), plus **at logon**. Event 105 alone isn't enough: if the machine boots or wakes *already* on battery there's no change event, so the logon trigger and event 107 cover those cases. Brightness writes use a short settle-delay to avoid a race where a write during the AC↔DC transition gets attributed to the wrong power source.
+The tray app (`Z13Tray.ps1`) is the primary trigger: it subscribes to the OS-level `SystemEvents.PowerModeChanged` notification and launches `Apply-DisplayPower.ps1` the moment the power source changes, plus it re-checks the power source on its own 5-second status timer as a safety net in case that notification is ever missed. The scheduled task remains installed as a backup path — it fires on **Kernel-Power event 105** (power source changed) and **107** (resume from sleep), plus **at logon** — but it has been observed to get killed mid-run by Task Scheduler (`SCHED_S_TASK_TERMINATED`) before it finishes applying, which is why the tray no longer relies on it alone. Event 105 alone isn't enough for the scheduled task either: if the machine boots or wakes *already* on battery there's no change event, so the logon trigger and event 107 cover those cases. Applying the same profile twice is harmless (idempotent), so having both the tray and the scheduled task react to the same change is safe. Brightness writes use a short settle-delay to avoid a race where a write during the AC/DC transition gets attributed to the wrong power source.
 
 ## Notes and caveats
 

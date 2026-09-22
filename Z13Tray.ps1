@@ -1,8 +1,8 @@
-# Z13Tray.ps1 — system tray app for Z13 display/power profiles.
+# Z13Tray.ps1 - system tray app for Z13 display/power profiles.
 # Launch hidden via Start-Z13Tray.vbs (or: powershell -WindowStyle Hidden -File Z13Tray.ps1)
 #
 # Tray icon shows the current refresh rate. Right-click for presets, automation
-# toggle, and status. Uses Z13Display.psm1 — the SAME code the scheduled task
+# toggle, and status. Uses Z13Display.psm1 - the SAME code the scheduled task
 # runs, so manual and automatic changes can never drift apart.
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -29,6 +29,11 @@ namespace Z13Tray { public class IconUtil {
 }
 
 $script:currentIconHandle = [IntPtr]::Zero
+
+# State for reactive power-source handling (see Start-ApplyProfile below).
+$script:applyProc = $null
+$script:ApplyScriptPath = Join-Path $PSScriptRoot 'Apply-DisplayPower.ps1'
+$script:lastPowerSource = Get-PowerSource
 
 function New-HzIcon {
   param([string]$Text, [bool]$OnBattery)
@@ -75,6 +80,28 @@ function Update-Tray {
   $script:statusItem.Text = "$src  -  $battTxt  -  $hzText Hz  -  brightness $br%"
   $script:autoItem.Text    = "Automation: $(if($cfg.AutomationEnabled){'Enabled'}else{'Disabled'})"
   $script:autoItem.Checked = [bool]$cfg.AutomationEnabled
+}
+
+function Start-ApplyProfile {
+  # Launches Apply-DisplayPower.ps1 as a hidden background process so its
+  # ~7s settle delay (Invoke-Z13AutoProfile's Start-Sleep loop) never runs on
+  # the tray UI thread, which would freeze the tray. Guarded so overlapping
+  # power events (event handler + timer safety net) cannot stack multiple
+  # applies at once - applying the same profile twice is harmless (idempotent),
+  # but there is no reason to launch a second process while one is in flight.
+  param([string]$Reason = '')
+
+  $cfg = Get-Z13Config
+  if (-not $cfg.AutomationEnabled) { return }
+
+  if ($script:applyProc -and (-not $script:applyProc.HasExited)) {
+    Write-Z13Log "tray: apply already running, skipping ($Reason)"
+    return
+  }
+
+  $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $script:ApplyScriptPath)
+  $script:applyProc = Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs -WindowStyle Hidden -PassThru
+  Write-Z13Log "tray: $Reason, launching apply"
 }
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -128,6 +155,10 @@ $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
 $exitItem = New-Object System.Windows.Forms.ToolStripMenuItem 'Exit'
 $exitItem.Add_Click({
+  if ($script:powerModeHandler) {
+    [Microsoft.Win32.SystemEvents]::remove_PowerModeChanged($script:powerModeHandler)
+    $script:powerModeHandler = $null
+  }
   $notify.Visible = $false
   if ($script:currentIconHandle -ne [IntPtr]::Zero) { [void][Z13Tray.IconUtil]::DestroyIcon($script:currentIconHandle) }
   [System.Windows.Forms.Application]::Exit()
@@ -144,11 +175,44 @@ $notify.Add_MouseClick({
   }
 })
 
-# Refresh status periodically (also catches changes made by the scheduled task)
+# Refresh status periodically (also catches changes made by the scheduled task).
+# This is also the safety net for a missed PowerModeChanged event: if the
+# power source differs from what we last saw, launch an apply. Catches any
+# missed event within 5s.
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 5000
-$timer.Add_Tick({ Update-Tray })
+$timer.Add_Tick({
+  Update-Tray
+  $src = Get-PowerSource
+  if ($src -ne $script:lastPowerSource) {
+    $old = $script:lastPowerSource
+    if ((Get-Z13Config).AutomationEnabled) {
+      Start-ApplyProfile -Reason "power $old->$src (timer)"
+    }
+    $script:lastPowerSource = $src
+  }
+})
 $timer.Start()
+
+# React to AC/DC changes immediately instead of waiting on the scheduled task,
+# which can be killed mid-run before it applies (see
+# plans\fix-power-profile-reconcile.md). SystemEvents.PowerModeChanged is a
+# static .NET event, not an instance event, so it is not subscribed with
+# Register-ObjectEvent; instead the scriptblock is cast directly to the
+# delegate type and hooked via the add_/remove_ accessor methods.
+# System.Windows.Forms is already loaded (pulls in SystemEvents), and this
+# tray pumps messages via Application.Run below, so the event will fire on
+# this thread.
+$script:powerModeHandler = [Microsoft.Win32.PowerModeChangedEventHandler]{
+  param($senderObj, $e)
+  if ($e.Mode -eq [Microsoft.Win32.PowerModes]::StatusChange) {
+    $old = $script:lastPowerSource
+    $new = Get-PowerSource
+    $script:lastPowerSource = $new
+    Start-ApplyProfile -Reason "power $old->$new (event)"
+  }
+}
+[Microsoft.Win32.SystemEvents]::add_PowerModeChanged($script:powerModeHandler)
 
 Update-Tray
 Write-Z13Log 'tray app started'
