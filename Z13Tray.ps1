@@ -99,7 +99,10 @@ function Start-ApplyProfile {
     return
   }
 
-  $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $script:ApplyScriptPath)
+  # The script path contains a space ("Z13 Automate"). Windows PowerShell 5.1
+  # Start-Process does NOT quote spaced array args, so the path must be quoted
+  # explicitly or the -File target breaks. (Verified 2026-09-21.)
+  $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"{0}"' -f $script:ApplyScriptPath))
   $script:applyProc = Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs -WindowStyle Hidden -PassThru
   Write-Z13Log "tray: $Reason, launching apply"
 }
