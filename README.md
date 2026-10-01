@@ -7,6 +7,7 @@ Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)
 - **Display/power automation** — 180 Hz + 90% brightness on AC, 60 Hz + 40% on battery, applied automatically the moment you plug in or unplug. Refresh rate only changes when undocked (single display), so it never fights an external monitor. A tray app shows the current Hz and lets you pick presets by hand.
 - **Windows Update control** — pause updates far past the 35-day UI cap, or fully disable/re-enable the update stack.
 - **Claude Desktop config fixes** — repair the `claude_desktop_config.json` issues left by a Windows profile migration (stale paths, `npx` path-with-spaces, UTF-8 BOM corruption).
+- **Weekly character-sheet backup** — every Thursday 9:00 AM, snapshot `Documents\Kaija.pdf` to the NAS as `Kaija YYYY.MM.DD.pdf` (previous Wednesday's date), only when it changed.
 
 ## Quick start (display/power automation)
 
@@ -77,6 +78,12 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 | File | Role |
 |---|---|
 | `ClaudeEnterFix.ahk` | AutoHotkey v2 script that remaps plain Enter to Ctrl+Enter while the Claude app is focused, working around the desktop app's tablet-mode "Enter = newline" bug (Shift+Enter still makes a newline). Requires AutoHotkey v2; add to startup to load at login. |
+
+### Backups
+| File | Role |
+|---|---|
+| `Backup-KaijaSheet.ps1` | Copies `C:\Users\jjmorse\Documents\Kaija.pdf` to `\\KrynnVault\Books\Spell and Blade\Character sheets\Kaija YYYY.MM.DD.pdf`, dated the most recent Wednesday before today, **only if** its SHA-256 differs from the newest `Kaija*.pdf` already there. Never overwrites; verifies the copy by hash; retries every 15 min for up to 8 h if the NAS is unreachable. `-DryRun` reports without copying. Log: `%LOCALAPPDATA%\KaijaSheetBackup\backup.log`. |
+| `Register-KaijaSheetBackup.ps1` | Creates/updates the **Kaija Sheet Backup** scheduled task: Thursdays 09:00, runs as you (not elevated, so it has your NAS credentials), runs at next wake if the PC was off/asleep. No admin needed. |
 
 ### Audio
 | File | Role |
