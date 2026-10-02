@@ -7,6 +7,7 @@ Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)
 - **Display/power automation** — 180 Hz + 90% brightness on AC, 60 Hz + 40% on battery, applied automatically the moment you plug in or unplug. Refresh rate only changes when undocked (single display), so it never fights an external monitor. A tray app shows the current Hz and lets you pick presets by hand.
 - **Windows Update control** — pause updates far past the 35-day UI cap, or fully disable/re-enable the update stack.
 - **Claude Desktop config fixes** — repair the `claude_desktop_config.json` issues left by a Windows profile migration (stale paths, `npx` path-with-spaces, UTF-8 BOM corruption).
+- **EmuDeck Cloud Sync fix** — after each ES-DE session, refresh EmuDeck's per-emulator cloud `.hash` files so the Steam Deck actually downloads saves made on this PC (EmuDeck for Windows never updates them).
 - **Weekly character-sheet backup** — every Thursday 9:00 AM, snapshot `Documents\Kaija.pdf` to the NAS as `Kaija YYYY.MM.DD.pdf` (previous Wednesday's date), only when it changed.
 
 ## Quick start (display/power automation)
@@ -84,6 +85,13 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 |---|---|
 | `Backup-KaijaSheet.ps1` | Copies `C:\Users\jjmorse\Documents\Kaija.pdf` to `\\KrynnVault\Books\Spell and Blade\Character sheets\Kaija YYYY.MM.DD.pdf`, dated the most recent Wednesday before today, **only if** its SHA-256 differs from the newest `Kaija*.pdf` already there. Never overwrites; verifies the copy by hash; retries every 15 min for up to 8 h if the NAS is unreachable. `-DryRun` reports without copying. Log: `%LOCALAPPDATA%\KaijaSheetBackup\backup.log`. |
 | `Register-KaijaSheetBackup.ps1` | Creates/updates the **Kaija Sheet Backup** scheduled task: Thursdays 09:00, runs as you (not elevated, so it has your NAS credentials), runs at next wake if the PC was off/asleep. No admin needed. |
+
+### EmuDeck Cloud Sync
+| File | Role |
+|---|---|
+| `Sync-EmuDeckHashes.ps1` | For each emulator folder under `D:\Emulation\saves` with saves changed since `-Since`: uploads it with EmuDeck's own rclone flags/excludes (keys never leave the PC), then writes and uploads a fresh `Emudeck/saves/<emu>/.hash`. The Deck skips its download when that file is unchanged, and EmuDeck on Windows only refreshes the top-level hash. Uses SHA-256 of `<total bytes>|<newest save mtime>` (EmuDeck's size-only hash misses same-size rewrites like an 8 KB Game Boy `.srm`). `-DryRun` lists only. Log: `%LOCALAPPDATA%\EmuDeckHashSync\sync.log`. |
+| `Watch-ESDESessions.ps1` | Hidden background loop (10 s poll): when ES-DE has been closed for 15 s, runs `Sync-EmuDeckHashes.ps1` for that session. Kept outside EmuDeck because EmuDeck overwrites its launchers and resets its backend on every launch. |
+| `Register-EmuDeckHashWatcher.ps1` | Creates the **EmuDeck Hash Sync Watcher** logon task (runs as you, no time limit, restarts if it dies) and starts it. No admin needed. |
 
 ### Audio
 | File | Role |
