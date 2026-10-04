@@ -7,6 +7,7 @@ Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)
 - **Display/power automation** — 180 Hz + 90% brightness on AC, 60 Hz + 40% on battery, applied automatically the moment you plug in or unplug. Refresh rate only changes when undocked (single display), so it never fights an external monitor. A tray app shows the current Hz and lets you pick presets by hand.
 - **Windows Update control** — pause updates far past the 35-day UI cap, or fully disable/re-enable the update stack.
 - **Claude Desktop config fixes** — repair the `claude_desktop_config.json` issues left by a Windows profile migration (stale paths, `npx` path-with-spaces, UTF-8 BOM corruption).
+- **Speaker amp auto-fix** — restarts the Cirrus Logic speaker amp whenever it fails to come back from Modern Standby (silent speakers while Windows shows audio playing).
 - **EmuDeck Cloud Sync fix** — after each ES-DE session, refresh EmuDeck's per-emulator cloud `.hash` files so the Steam Deck actually downloads saves made on this PC (EmuDeck for Windows never updates them).
 - **Weekly character-sheet backup** — every Thursday 9:00 AM, snapshot `Documents\Kaija.pdf` to the NAS as `Kaija YYYY.MM.DD.pdf` (previous Wednesday's date), only when it changed.
 
@@ -96,6 +97,8 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 ### Audio
 | File | Role |
 |---|---|
+| `Repair-SpeakerAmp.ps1` | Checks the Cirrus Logic speaker amp (`ACPI\CSC3551\1`). If it is in an error state (typically Code 10 / `0xC000009E` power failure after Modern Standby; not when deliberately disabled), runs `pnputil /restart-device` and re-checks. Logs each run to `C:\ProgramData\Z13Automate\speaker-amp.log` (last 500 lines). |
+| `Register-SpeakerAmpAutofix.ps1` | Run **elevated**. Copies `Repair-SpeakerAmp.ps1` to `C:\ProgramData\Z13Automate` (only SYSTEM/Administrators can modify it, since the task runs as SYSTEM) and registers the **Speaker Amp Autofix** task: on Kernel-Power 507 (exiting Modern Standby; this Z13 never logs the classic resume events), logon, unlock, and every 30 minutes. Re-run it after editing `Repair-SpeakerAmp.ps1` so the protected copy updates. |
 | `EqualizerAPO/` | Backup + docs for the per-device speaker EQ: Equalizer APO installed on the built-in Realtek speakers only, so the reddit-tuned Z13 speaker boost applies to the speakers automatically while headphones stay untouched (no manual switching). See `EqualizerAPO/README.md`. |
 
 ## How the automation triggers
