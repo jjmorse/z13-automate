@@ -76,6 +76,11 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 |---|---|
 | `Reset-Bluetooth.ps1` | Cycle the MediaTek Bluetooth adapter to recover a dropped BLE device (e.g. a Surface Slim Pen whose link won't reconnect after charging). Self-elevating; pair it with a desktop shortcut for one-click use. |
 
+### Lighting
+| File | Role |
+|---|---|
+| `Set-ArmouryLighting.ps1` | Stops and disables (or with `-Enable`, restores; `-Status`, reports) Armoury Crate's `LightingService`. That service re-applies its own Aura effect at start/wake and overrides G-Helper's static keyboard backlight. With it disabled G-Helper alone controls the lights (Armoury Crate's Aura page stops working; the rest of Armoury Crate is unaffected). Self-elevates for changes. An Armoury Crate/ASUS update may re-enable the service, so check `-Status` if the lights animate again. |
+
 ### Input
 | File | Role |
 |---|---|
