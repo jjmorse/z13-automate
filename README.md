@@ -113,6 +113,7 @@ The tray app (`Z13Tray.ps1`) is the primary trigger: it subscribes to the OS-lev
 ## Notes and caveats
 
 - **Windows PowerShell 5.1 gotcha:** never edit `claude_desktop_config.json` with `Set-Content -Encoding UTF8` — it writes a UTF-8 BOM that Node/Electron's `JSON.parse` rejects, silently wiping the config. Use `[System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))`.
+- **Background tasks launch through `conhost.exe --headless`**, not `powershell -WindowStyle Hidden`. Task Scheduler can't start a process hidden, so with Windows Terminal as the default terminal the hidden PowerShell still opened a visible Terminal window at logon (and closing it killed the task). The **Display Power Profile**, **EmuDeck Hash Sync Watcher**, **Kaija Sheet Backup** and **Sync Calibre to NAS** tasks all use it; the SYSTEM speaker-amp task runs in session 0 and doesn't need to. Trade-off: stopping such a task (or hitting its time limit) ends only `conhost`, not the PowerShell it started, so `Watch-ESDESessions.ps1` takes a mutex to stay single-instance. To restart the watcher deliberately, stop its `powershell.exe` first. See `plans/headless-task-launch.md`.
 - Most scripts need an **elevated** PowerShell (task registration, service changes, registry writes under HKLM).
 - `superseded/` holds earlier versions kept for reference; nothing there is used at runtime.
 - Machine-specific: paths and device assumptions target this Z13. Review before running on other hardware.
