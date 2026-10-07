@@ -7,8 +7,9 @@ $taskName = 'Kaija Sheet Backup'
 $script   = Join-Path $PSScriptRoot 'Backup-KaijaSheet.ps1'
 if (-not (Test-Path $script)) { Write-Host "STOP: missing $script" -ForegroundColor Red; exit 1 }
 
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-  -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f $script)
+# conhost --headless: `powershell -WindowStyle Hidden` still pops a Windows Terminal window when Terminal is the default.
+$action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\conhost.exe" `
+  -Argument ('--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $script)
 $trigger   = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Thursday -At '09:00'
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
 # 9 h limit covers the script's own 8 h NAS-retry window.

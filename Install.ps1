@@ -12,8 +12,9 @@ foreach ($f in @($applyPs1, $trayVbs)) {
 }
 
 # ---- 1. Update scheduled task action to new path ----
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-  -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}"' -f $applyPs1)
+# conhost --headless: `powershell -WindowStyle Hidden` still pops a Windows Terminal window when Terminal is the default.
+$action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\conhost.exe" `
+  -Argument ('--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $applyPs1)
 
 # Triggers. EventID 105 alone is NOT enough - it only fires on a power source
 # CHANGE. If the machine boots or resumes from sleep already on battery there is

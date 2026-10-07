@@ -7,6 +7,13 @@ overwrites its launchers (update_launchers) and resets its backend on every laun
 Polls every 10 s; negligible CPU.
 #>
 $ErrorActionPreference = 'Continue'
+
+# Single instance: the task launches this through conhost --headless, and Stop-ScheduledTask only ends conhost,
+# not this PowerShell, so a restart could otherwise leave two watchers (= every session synced twice).
+$createdNew = $false
+$script:instanceMutex = New-Object System.Threading.Mutex($true, 'Local\Z13Automate.EmuDeckHashWatcher', [ref]$createdNew)
+if (-not $createdNew) { exit 0 }
+
 $sync = Join-Path $PSScriptRoot 'Sync-EmuDeckHashes.ps1'
 $sessionStart = $null
 
