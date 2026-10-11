@@ -30,5 +30,8 @@
                         "Brightness":  15
                     }
                 ],
-    "ManageBrightness":  true
+    "ManageBrightness":  true,
+    "DockMuteSpeakers":  true,
+    "DockDeviceMatch":  "TS3 Plus",
+    "SpeakerEndpointMatch":  "Realtek"
 }
