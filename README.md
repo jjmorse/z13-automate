@@ -36,13 +36,19 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
     { "Name": "Battery Reading", "Hz": 60,  "Brightness": 25 },
     { "Name": "Max Endurance",   "Hz": 60,  "Brightness": 15 }
   ],
-  "ManageBrightness": true
+  "ManageBrightness": true,
+  "DockMuteSpeakers": true,
+  "DockDeviceMatch": "TS3 Plus",
+  "SpeakerEndpointMatch": "Realtek"
 }
 ```
 
 - **AC / DC** — the refresh rate and brightness applied when on the charger vs on battery.
 - **Presets** — named profiles the tray app exposes for manual switching.
 - **ManageBrightness** — when `true`, the scripts set brightness too; set `false` to control refresh rate only and leave brightness alone.
+- **DockMuteSpeakers** — when `true` (the default), the built-in speakers are muted while the Z13 is docked and unmuted on undock. Set `false` to turn this off.
+- **DockDeviceMatch** — text that identifies the dock by its PnP device name. `TS3 Plus` matches "Thunderbolt 3(TM) Router, CalDigit. Inc. - TS3 Plus".
+- **SpeakerEndpointMatch** — text that identifies the speaker endpoint to mute. `Realtek` matches "Speakers (Realtek(R) Audio)". If it matches zero or several playback devices, nothing is muted.
 
 ## Files
 
@@ -105,6 +111,8 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 | `Repair-SpeakerAmp.ps1` | Checks the Cirrus Logic speaker amp (`ACPI\CSC3551\1`). If it is in an error state (typically Code 10 / `0xC000009E` power failure after Modern Standby; not when deliberately disabled), runs `pnputil /restart-device` and re-checks. Logs each run to `C:\ProgramData\Z13Automate\speaker-amp.log` (last 500 lines). |
 | `Register-SpeakerAmpAutofix.ps1` | Run **elevated**. Copies `Repair-SpeakerAmp.ps1` to `C:\ProgramData\Z13Automate` (only SYSTEM/Administrators can modify it, since the task runs as SYSTEM) and registers the **Speaker Amp Autofix** task: on Kernel-Power 507 (exiting Modern Standby; this Z13 never logs the classic resume events), logon, unlock, and every 30 minutes. Re-run it after editing `Repair-SpeakerAmp.ps1` so the protected copy updates. |
 | `EqualizerAPO/` | Backup + docs for the per-device speaker EQ: Equalizer APO installed on the built-in Realtek speakers only, so the reddit-tuned Z13 speaker boost applies to the speakers automatically while headphones stay untouched (no manual switching). See `EqualizerAPO/README.md`. |
+
+**Speakers while docked:** the tray app mutes the built-in Realtek speakers (Windows endpoint mute, so the volume level is unchanged) when the Z13 is docked to the CalDigit TS3 Plus, and unmutes them on undock only if it did the muting. It acts only when the dock state changes, so a manual unmute while docked sticks. Turn it off from the tray menu (Mute speakers when docked) or with `DockMuteSpeakers` in `config.json`. The state is kept in `%LOCALAPPDATA%\Z13Automate\dock-audio-state.json`.
 
 ## How the automation triggers
 

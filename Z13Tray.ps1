@@ -34,6 +34,7 @@ $script:currentIconHandle = [IntPtr]::Zero
 $script:applyProc = $null
 $script:ApplyScriptPath = Join-Path $PSScriptRoot 'Apply-DisplayPower.ps1'
 $script:lastPowerSource = Get-PowerSource
+$script:dockedNow = $null   # last dock state from Invoke-Z13DockAudio (null = unknown); shown on the status line
 
 function New-HzIcon {
   param([string]$Text, [bool]$OnBattery)
@@ -77,9 +78,13 @@ function Update-Tray {
   $battTxt = if ($null -ne $pct) { "$pct%" } else { 'n/a' }
   # NotifyIcon text is capped at 63 chars
   $notify.Text = "Z13 - $src $battTxt | $hzText Hz | bright $br% | auto $auto"
-  $script:statusItem.Text = "$src  -  $battTxt  -  $hzText Hz  -  brightness $br%"
+  $dockTxt = if ($null -eq $script:dockedNow) { '' } elseif ($script:dockedNow) { '  -  docked' } else { '  -  undocked' }
+  $script:statusItem.Text = "$src  -  $battTxt  -  $hzText Hz  -  brightness $br%$dockTxt"
   $script:autoItem.Text    = "Automation: $(if($cfg.AutomationEnabled){'Enabled'}else{'Disabled'})"
   $script:autoItem.Checked = [bool]$cfg.AutomationEnabled
+  $dockMute = $true
+  if ($null -ne $cfg.DockMuteSpeakers) { $dockMute = [bool]$cfg.DockMuteSpeakers }
+  $script:dockMuteItem.Checked = $dockMute
 }
 
 function Start-ApplyProfile {
@@ -105,6 +110,12 @@ function Start-ApplyProfile {
   $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"{0}"' -f $script:ApplyScriptPath))
   $script:applyProc = Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs -WindowStyle Hidden -PassThru
   Write-Z13Log "tray: $Reason, launching apply"
+}
+
+function Invoke-DockAudio {
+  # Speakers-while-docked check (see Invoke-Z13DockAudio). Runs at start-up and on every timer tick. Never throws.
+  try { $script:dockedNow = (Invoke-Z13DockAudio).Docked }
+  catch { Write-Z13Log "tray: dock audio error: $($_.Exception.Message)" }
 }
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -144,6 +155,19 @@ $script:autoItem.Add_Click({
   Update-Tray
 })
 $menu.Items.Add($script:autoItem) | Out-Null
+# --- mute built-in speakers while docked ---
+$script:dockMuteItem = New-Object System.Windows.Forms.ToolStripMenuItem 'Mute speakers when docked'
+$script:dockMuteItem.CheckOnClick = $false
+$script:dockMuteItem.Add_Click({
+  $c = Get-Z13Config
+  $cur = $true
+  if ($null -ne $c.DockMuteSpeakers) { $cur = [bool]$c.DockMuteSpeakers }
+  $c | Add-Member -NotePropertyName DockMuteSpeakers -NotePropertyValue (-not $cur) -Force
+  Set-Z13Config -Config $c
+  Write-Z13Log "dock mute speakers toggled -> $(-not $cur)"
+  Update-Tray
+})
+$menu.Items.Add($script:dockMuteItem) | Out-Null
 $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
 # --- open folder / log ---
@@ -185,6 +209,7 @@ $notify.Add_MouseClick({
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 5000
 $timer.Add_Tick({
+  Invoke-DockAudio
   Update-Tray
   $src = Get-PowerSource
   if ($src -ne $script:lastPowerSource) {
@@ -217,6 +242,7 @@ $script:powerModeHandler = [Microsoft.Win32.PowerModeChangedEventHandler]{
 }
 [Microsoft.Win32.SystemEvents]::add_PowerModeChanged($script:powerModeHandler)
 
+Invoke-DockAudio
 Update-Tray
 Write-Z13Log 'tray app started'
 
