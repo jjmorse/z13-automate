@@ -1,6 +1,6 @@
 # Z13 Automate
 
-Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)** — Ryzen AI Max+ 395, Radeon 8060S, Windows 11. The headline feature switches display **refresh rate and brightness by power source** (full speed on AC, battery-saving on DC); the rest are self-contained maintenance scripts collected here so one folder holds everything that keeps this machine tuned.
+Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)** — Ryzen AI Max+ 395, Radeon 8060S, Windows 11. The headline feature switches display **refresh rate and brightness by power source** (full speed on AC, battery-saving on DC); the rest are self-contained maintenance scripts collected here so one folder holds everything that keeps this machine tuned. The Linux scripts are in `linux/`; everything outside `linux/` is Windows-only.
 
 ## What it does
 
@@ -10,6 +10,7 @@ Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)
 - **Speaker amp auto-fix** — restarts the Cirrus Logic speaker amp whenever it fails to come back from Modern Standby (silent speakers while Windows shows audio playing).
 - **EmuDeck Cloud Sync fix** — after each ES-DE session, refresh EmuDeck's per-emulator cloud `.hash` files so the Steam Deck actually downloads saves made on this PC (EmuDeck for Windows never updates them).
 - **Weekly character-sheet backup** — every Thursday 9:00 AM, snapshot `Documents\Kaija.pdf` to the NAS as `Kaija YYYY.MM.DD.pdf` (previous Wednesday's date), only when it changed.
+- **Linux Fn lock** — on Linux, makes Fn+Esc toggle the function row between media keys and F-keys on the folio keyboard (a systemd service). See `linux/z13-fnlock/README.md`.
 
 ## Quick start (display/power automation)
 
@@ -113,6 +114,14 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 | `EqualizerAPO/` | Backup + docs for the per-device speaker EQ: Equalizer APO installed on the built-in Realtek speakers only, so the reddit-tuned Z13 speaker boost applies to the speakers automatically while headphones stay untouched (no manual switching). See `EqualizerAPO/README.md`. |
 
 **Speakers while docked:** the tray app mutes the built-in Realtek speakers (Windows endpoint mute, so the volume level is unchanged) when the Z13 is docked to the CalDigit TS3 Plus, and unmutes them on undock only if it did the muting. It acts only when the dock state changes, so a manual unmute while docked sticks. Turn it off from the tray menu (Mute speakers when docked) or with `DockMuteSpeakers` in `config.json`. The state is kept in `%LOCALAPPDATA%\Z13Automate\dock-audio-state.json`.
+
+## Linux
+
+Everything above is Windows-only. The Linux scripts live under `linux/`, one folder per tool.
+
+| Folder | Role |
+|---|---|
+| `linux/z13-fnlock/` | Fn+Esc Fn lock for the Z13 folio keyboard. The kernel receives the key but does not act on it for this keyboard, so a small systemd service sends the Fn lock command itself, starts in media-key mode, and reapplies the state after the keyboard is reattached or the laptop resumes. Install with `sudo bash linux/z13-fnlock/install.sh`. See its README. |
 
 ## How the automation triggers
 

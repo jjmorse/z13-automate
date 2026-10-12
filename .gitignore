@@ -10,3 +10,7 @@ user-path-backup-*.txt
 # OS cruft
 Thumbs.db
 desktop.ini
+
+# Python bytecode (the Linux tools)
+__pycache__/
+*.pyc
