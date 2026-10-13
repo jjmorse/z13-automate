@@ -4,7 +4,7 @@
 The kernel's hid-asus driver sees Fn+Esc as KEY_FN_ESC but only toggles the keyboard's Fn lock for
 devices flagged QUIRK_HID_FN_LOCK, and the Z13 folio is not flagged. This sends the same 64-byte HID
 feature report the driver sends for the flagged keyboards: report id 0x5a, then d0 4e, then 1 or 0.
-Remove this once the kernel does it. See notes/upstream-z13-fnlock-patch.md in the z13-tools repo.
+Remove this once the kernel does it: the fix is one quirk flag for this keyboard in hid-asus (see the README).
 
 Fn lock ON means F1 to F12 are plain F-keys. Fn lock OFF means the row sends media keys.
 
