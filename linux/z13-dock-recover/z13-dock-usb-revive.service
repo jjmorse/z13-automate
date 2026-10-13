@@ -1,0 +1,11 @@
+[Unit]
+Description=Revive the Thunderbolt dock's USB controllers after resume
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/bin/z13-dock-usb-revive fix --settle 4
+TimeoutStartSec=90
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

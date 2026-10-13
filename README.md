@@ -11,6 +11,7 @@ Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)
 - **EmuDeck Cloud Sync fix** — after each ES-DE session, refresh EmuDeck's per-emulator cloud `.hash` files so the Steam Deck actually downloads saves made on this PC (EmuDeck for Windows never updates them).
 - **Weekly character-sheet backup** — every Thursday 9:00 AM, snapshot `Documents\Kaija.pdf` to the NAS as `Kaija YYYY.MM.DD.pdf` (previous Wednesday's date), only when it changed.
 - **Linux Fn lock** — on Linux, makes Fn+Esc toggle the function row between media keys and F-keys on the folio keyboard (a systemd service). See `linux/z13-fnlock/README.md`.
+- **Linux dock recovery** — on Linux, brings a Thunderbolt dock's USB controllers back after a long sleep and restores the monitor layout by monitor identity when connector names change after a replug (two systemd services). See `linux/z13-dock-recover/README.md`.
 
 ## Quick start (display/power automation)
 
@@ -122,6 +123,7 @@ Everything above is Windows-only. The Linux scripts live under `linux/`, one fol
 | Folder | Role |
 |---|---|
 | `linux/z13-fnlock/` | Fn+Esc Fn lock for the Z13 folio keyboard. The kernel receives the key but does not act on it for this keyboard, so a small systemd service sends the Fn lock command itself, starts in media-key mode, and reapplies the state after the keyboard is reattached or the laptop resumes. Install with `sudo bash linux/z13-fnlock/install.sh`. See its README. |
+| `linux/z13-dock-recover/` | Recovery for a Thunderbolt dock after sleep or a replug. One service revives dock USB controllers that fail to resume (the software equivalent of replugging the dock). The other identifies each monitor by its EDID and re-applies a saved layout, because the kernel can swap connector names and KDE then puts the wrong settings on the wrong monitor. Install with `sudo bash linux/z13-dock-recover/install.sh system` and `bash linux/z13-dock-recover/install.sh user`. See its README. |
 
 ## How the automation triggers
 
