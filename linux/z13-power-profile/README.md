@@ -64,6 +64,17 @@ It should print `b false`.
 
 1. Restarting `tlp-pd` resets the automatic-switching flag to on until `sudo tlp start` runs again. After any restart of `tlp-pd.service`, run `sudo tlp start`.
 2. `tlp-pd` does not announce the flag change to KDE. Either restart KDE's PowerDevil (`systemctl --user restart plasma-powerdevil.service`) or log out and back in before the slider appears. The user install step does the restart.
+3. With automatic switching off, TLP applies its Balanced settings, which it treats as battery settings (`tlp-stat -s` shows `balanced/BAT`) even on AC power. Those include runtime power management `auto` for every PCI device, so TLP can undo a PCI power setting made somewhere else, for example a udev rule that keeps a Thunderbolt or USB4 root port at `on` so dock hot-plug is detected. On the Z13 the ports are `00:01.1` and `00:01.2`. Check with `cat /sys/bus/pci/devices/0000:00:01.1/power/control`. To fix it, first add the devices to TLP's denylist in a file in `/etc/tlp.d/` (PCI addresses without the domain):
+
+```bash
+printf 'RUNTIME_PM_DENYLIST="00:01.1 00:01.2"\n' | sudo tee /etc/tlp.d/20-pci-runtime-pm-denylist.conf
+```
+
+Then run `sudo tlp start`, and then re-apply your own rule (on the Z13 that is the command below, which fires the udev rule again for the two ports):
+
+```bash
+sudo tlp start && sudo udevadm trigger --action=add --subsystem-match=pci --sysname-match='0000:00:01.[12]'
+```
 
 ## Uninstall
 
