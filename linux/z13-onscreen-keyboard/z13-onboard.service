@@ -1,0 +1,14 @@
+[Unit]
+Description=Onboard on-screen keyboard for the Z13, shown only when the keyboard folio is detached
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/onboard
+Environment=GDK_BACKEND=x11
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
