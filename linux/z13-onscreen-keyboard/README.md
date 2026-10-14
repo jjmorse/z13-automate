@@ -10,7 +10,9 @@ Plasma Keyboard, the virtual keyboard KDE shows for touch input, has no Tab, Ctr
 
 Onboard runs under XWayland (`GDK_BACKEND=x11`) with GTK input events and uinput for keystrokes. Desktop accessibility is turned on so that apps report their text fields to Onboard.
 
-KWin's tablet-mode flag (`org.kde.KWin.TabletModeManager`) turns on when the folio is detached. The watcher, `z13-onboard-follow`, follows that flag. In tablet mode it sets Onboard's `AutoShowPaused` property to false, so auto-show works. With the folio attached it sets `AutoShowPaused` to true and hides the keyboard. The user unit `z13-onboard.service` starts Onboard, and `z13-onboard-follow.service` runs the watcher.
+KWin's tablet-mode flag (`org.kde.KWin.TabletModeManager`) turns on when the folio is detached. The watcher, `z13-onboard-follow`, follows that flag. In tablet mode, with no external keyboard connected, it sets Onboard's `AutoShowPaused` property to false, so auto-show works. With the folio attached it sets `AutoShowPaused` to true and hides the keyboard. The user unit `z13-onboard.service` starts Onboard, and `z13-onboard-follow.service` runs the watcher.
+
+The watcher also looks for an external physical keyboard (a USB or Bluetooth keyboard other than the Z13's own, found in the udev database) and keeps auto-show paused while one is connected, even in tablet mode, and it reacts to keyboards being plugged in or removed.
 
 Onboard also has its own keyboard-detection option, which is not used. Under X11 mode Onboard cannot see the real input devices, and the Z13 has two permanent internal keyboard devices, so that option cannot tell whether the folio is attached.
 
@@ -44,6 +46,8 @@ Show the tablet-mode flag and Onboard's `AutoShowPaused` value:
 
 Detach the folio and tap a text field. The Onboard keyboard should appear. Reattach the folio and tap a text field again. Nothing should appear. Apps that were already running before accessibility was turned on need a restart once.
 
+With the folio detached and an external keyboard plugged in, tapping a text field should not bring up Onboard, and `z13-onboard-follow --status` lists the keyboard.
+
 ## Settings it applies
 
 | Schema | Key | Value |
@@ -74,4 +78,5 @@ gsettings reset org.onboard.auto-show enabled
 - Onboard under Wayland is a workaround through XWayland. One report says it can crash on close; the service restarts it.
 - The lock screen and the login screen are not covered.
 - Plasma Keyboard stays installed but is not used while Onboard is the only thing started.
-- No test suite beyond `--status` and `--once`.
+- Tests cover only the keyboard-detection parser (`python3 -I -m unittest discover -v -s linux/z13-onscreen-keyboard`); the D-Bus and udev monitor paths are checked with `--status`, `--once` and by hand.
+- A keyboard that reports itself as a virtual or non-keyboard device (some wireless receivers) is not detected, and the ASUS vendor id (0b05) is ignored on purpose.
