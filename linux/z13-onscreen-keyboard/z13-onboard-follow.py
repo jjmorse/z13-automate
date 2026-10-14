@@ -1,8 +1,9 @@
 #!/usr/bin/python3
-"""Follow KWin tablet mode: Onboard auto-show runs only while the keyboard folio is detached."""
+"""Follow KWin tablet mode and external keyboards: Onboard auto-show runs only in tablet mode with no other keyboard."""
 
 import argparse
 import signal
+import subprocess
 import sys
 
 from gi.repository import Gio, GLib
@@ -17,6 +18,8 @@ DBUS = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
 PROPS = "org.freedesktop.DBus.Properties"
 NAMES = {KWIN: "KWin", ONBOARD: "Onboard"}
+IGNORED_VENDORS = {"0b05"}  # ASUS: the folio and internal keys, which tablet mode already covers
+UDEV_MONITOR = ["udevadm", "monitor", "--udev", "--subsystem-match=input"]
 
 
 def call(bus, dest, path, iface, method, params=None):
@@ -40,10 +43,41 @@ def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
 
+def external_keyboards(db_text):
+    """Return sorted unique names of external USB or Bluetooth keyboards in `udevadm info --export-db` text."""
+    names = set()
+    for block in db_text.split("\n\n"):
+        props = dict(line[3:].split("=", 1) for line in block.splitlines() if line.startswith("E: ") and "=" in line)
+        vendor = props.get("ID_VENDOR_ID", "")
+        if (props.get("ID_INPUT_KEYBOARD") == "1"
+                and props.get("DEVNAME", "").startswith("/dev/input/event")
+                and not props.get("DEVPATH", "").startswith("/devices/virtual/")
+                and props.get("ID_BUS") in ("usb", "bluetooth")
+                and vendor not in IGNORED_VENDORS):
+            model = props.get("ID_MODEL")
+            names.add(model.replace("_", " ") if model else f"{vendor}:{props.get('ID_MODEL_ID', '')}")
+    return sorted(names)
+
+
+def read_external_keyboards():
+    try:
+        done = subprocess.run(["udevadm", "info", "--export-db"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError) as err:
+        log(f"z13-onboard-follow: cannot run udevadm: {err}")
+        return []
+    if done.returncode != 0:
+        log(f"z13-onboard-follow: udevadm info failed with exit status {done.returncode}")
+        return []
+    return external_keyboards(done.stdout)
+
+
 class Watcher:
     def __init__(self, bus):
         self.bus = bus
         self.waiting = set()
+        self.loop = None
+        self.exit_code = 0
+        self.refresh_scheduled = False
 
     def ready(self, name):
         """Return True if the name has an owner; say 'waiting for ...' once per absence."""
@@ -55,21 +89,27 @@ class Watcher:
             print(f"waiting for {NAMES[name]}", flush=True)
         return False
 
+    def set_auto_show(self, active, msg):
+        set_paused(self.bus, not active)
+        if not active:
+            call(self.bus, ONBOARD, ONBOARD_PATH, ONBOARD_IFACE, "Hide")
+        print(msg, flush=True)
+
     def refresh(self):
-        """Read KWin's tablet-mode flag and apply it to Onboard."""
+        """Apply tablet mode and external keyboards to Onboard."""
         try:
             if not self.ready(KWIN):
                 return
             tablet_on = get_prop(self.bus, KWIN, KWIN_PATH, TABLET_IFACE, "tabletMode")
             if not self.ready(ONBOARD):
                 return
-            if tablet_on:
-                set_paused(self.bus, False)
-                print("tablet mode on: auto-show active", flush=True)
+            keyboards = read_external_keyboards()
+            if not tablet_on:
+                self.set_auto_show(False, "tablet mode off: auto-show paused and keyboard hidden")
+            elif keyboards:
+                self.set_auto_show(False, f"tablet mode on, external keyboard ({', '.join(keyboards)}): auto-show paused and keyboard hidden")
             else:
-                set_paused(self.bus, True)
-                call(self.bus, ONBOARD, ONBOARD_PATH, ONBOARD_IFACE, "Hide")
-                print("tablet mode off: auto-show paused and keyboard hidden", flush=True)
+                self.set_auto_show(True, "tablet mode on, no external keyboard: auto-show active")
         except GLib.Error as err:
             log(f"z13-onboard-follow: {err.message}")
 
@@ -95,6 +135,41 @@ class Watcher:
         self.refresh()
         return GLib.SOURCE_REMOVE
 
+    def start_input_monitor(self):
+        """Refresh when input devices come or go; if the monitor stops, quit so systemd restarts the watcher."""
+        try:
+            self.udev_proc = Gio.Subprocess.new(UDEV_MONITOR, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE)
+        except GLib.Error as err:
+            return self.monitor_failed(err.message)
+        self.udev_lines = Gio.DataInputStream.new(self.udev_proc.get_stdout_pipe())
+        self.udev_lines.read_line_async(GLib.PRIORITY_DEFAULT, None, self.on_udev_line)
+
+    def on_udev_line(self, _source, result):
+        try:
+            line, _length = self.udev_lines.read_line_finish_utf8(result)
+        except GLib.Error as err:
+            return self.monitor_failed(err.message)
+        if line is None:
+            return self.monitor_failed("udevadm monitor ended")
+        if " add " in line or " remove " in line:
+            self.schedule_refresh()
+        self.udev_lines.read_line_async(GLib.PRIORITY_DEFAULT, None, self.on_udev_line)
+
+    def schedule_refresh(self):
+        if not self.refresh_scheduled:
+            self.refresh_scheduled = True
+            GLib.timeout_add(1000, self.run_scheduled_refresh)
+
+    def run_scheduled_refresh(self):
+        self.refresh_scheduled = False
+        self.refresh()
+        return GLib.SOURCE_REMOVE
+
+    def monitor_failed(self, reason):
+        log(f"z13-onboard-follow: input device monitor stopped: {reason}")
+        self.exit_code = 1
+        GLib.idle_add(quit_loop, self.loop)
+
 
 def show_status(bus):
     try:
@@ -110,6 +185,8 @@ def show_status(bus):
             print("AutoShowPaused: not running", flush=True)
     except GLib.Error as err:
         print(f"AutoShowPaused: unknown ({err.message})", flush=True)
+    keyboards = read_external_keyboards()
+    print(f"external keyboard: {', '.join(keyboards) or 'none'}", flush=True)
     return 0
 
 
@@ -138,10 +215,12 @@ def main():
     loop = GLib.MainLoop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, quit_loop, loop)
+    watcher.loop = loop
     watcher.subscribe()
     watcher.refresh()
+    watcher.start_input_monitor()
     loop.run()
-    return 0
+    return watcher.exit_code
 
 
 if __name__ == "__main__":
