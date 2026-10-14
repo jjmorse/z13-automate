@@ -1,6 +1,6 @@
 [Unit]
 Description=Pause Onboard auto-show while the keyboard folio is attached
-After=z13-onboard.service
+After=graphical-session.target z13-onboard.service
 Wants=z13-onboard.service
 PartOf=graphical-session.target
 
