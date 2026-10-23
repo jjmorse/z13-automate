@@ -1,0 +1,14 @@
+[Unit]
+Description=Suspend after idle when only Claude Desktop's rotation claims block sleep
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/z13-claude-idle-sleep
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=graphical-session.target
