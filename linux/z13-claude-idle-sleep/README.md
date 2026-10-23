@@ -14,7 +14,7 @@ A user service watches keyboard and mouse input through `swayidle`, because KDE 
 - Claude Desktop's log (`~/.config/Claude/logs/main.log`) shows only rotation claims for the whole timeout. A Code turn, a manual hold, a remote tool call or any unrecognised keep-awake line counts as activity and postpones sleep.
 - The log covers the whole timeout, and the machine has not come out of sleep in the last 10 minutes.
 
-Anything it cannot read or does not recognise means it does not suspend. It suspends through PowerDevil's own Suspend call, so KDE's lock-on-resume behaviour still applies. It writes a journal line when its reason changes, and one for every suspend.
+Anything it cannot read or does not recognise means it does not suspend. It suspends through PowerDevil's own Suspend call, so KDE's lock-on-resume behaviour still applies. It writes a journal line when its reason changes, and one for every suspend. After it asks for a suspend it waits three minutes before asking again, so a slow suspend is not requested twice.
 
 ## Requirements
 
@@ -38,7 +38,7 @@ Install, as your normal user. The installer refuses to run as root:
 bash linux/z13-claude-idle-sleep/install.sh
 ```
 
-The installer copies the helper to `~/.local/bin/z13-claude-idle-sleep`, copies the unit to `~/.config/systemd/user/`, and enables the service now and at login.
+The installer copies the helper to `~/.local/bin/z13-claude-idle-sleep`, copies the unit to `~/.config/systemd/user/`, and starts (or restarts) the service now and enables it at login.
 
 ## Check it works
 

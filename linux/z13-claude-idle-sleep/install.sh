@@ -55,7 +55,8 @@ run install -Dm755 "$HERE/z13-claude-idle-sleep.py" "$SCRIPT_DST"
 run install -Dm644 "$HERE/z13-claude-idle-sleep.service" "$UNIT_DIR/z13-claude-idle-sleep.service"
 
 run systemctl --user daemon-reload
-run systemctl --user enable --now z13-claude-idle-sleep.service
+run systemctl --user enable z13-claude-idle-sleep.service
+run systemctl --user restart z13-claude-idle-sleep.service
 
 echo "Check with: journalctl --user -u z13-claude-idle-sleep.service -n 20"
 if [ "$DRY_RUN" -eq 1 ]; then
