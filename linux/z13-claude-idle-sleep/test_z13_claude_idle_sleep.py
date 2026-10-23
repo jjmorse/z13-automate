@@ -633,6 +633,22 @@ class DecideTest(unittest.TestCase):
         activity = helper.Activity(NOW - 10, ["code_turn"], False)
         self.assertEqual(self.decide(activity=activity), (False, "Claude log history too short"))
 
+    def test_grace_is_checked_before_the_cooldown(self):
+        self.assertEqual(self.decide(grace_until=NOW + 600, cooldown_until=NOW + 180),
+                         (False, "grace period after resume"))
+
+    def test_cooldown_is_checked_before_the_inhibition_checks(self):
+        self.assertEqual(self.decide(inhibitions=None, cooldown_until=NOW + 180),
+                         (False, "suspend already requested"))
+        self.assertEqual(self.decide(inhibitions=[other_row()], cooldown_until=NOW + 180),
+                         (False, "suspend already requested"))
+
+    def test_not_idle_is_checked_before_the_cooldown(self):
+        self.assertEqual(self.decide(idle=False, cooldown_until=NOW + 180), (False, "not idle"))
+
+    def test_cooldown_ends_exactly_when_now_reaches_it(self):
+        self.assertEqual(self.decide(cooldown_until=NOW), (True, "only Claude rotation claims for 3600s"))
+
     def test_holds_are_checked_before_recent_activity(self):
         activity = helper.Activity(NOW - 10, ["code_turn"], True)
         self.assertEqual(self.decide(activity=activity), (False, "Claude hold in progress: code_turn"))
@@ -665,9 +681,10 @@ class MonitorTest(TempDirTest):
     def test_suspend_failure_is_logged_and_the_loop_keeps_going(self):
         log = write_log(self.dir, "main.log", rotation_only_log())
         runner, out = FakeRunner(suspend_returncode=1), []
-        monitor, _clock = self.monitor(log, runner, out.append)
+        monitor, clock = self.monitor(log, runner, out.append)
         monitor.on_line("IDLE")
         monitor.evaluate()
+        clock.now += helper.SUSPEND_COOLDOWN_SECONDS + 1
         monitor.evaluate()
         self.assertEqual(len(runner.suspend_calls()), 2)
         self.assertTrue(any(msg.startswith("suspend failed") for msg in out))
@@ -705,6 +722,58 @@ class MonitorTest(TempDirTest):
         clock.now += helper.GRACE_SECONDS + 1
         monitor.evaluate()
         self.assertEqual(len(runner.suspend_calls()), 1)
+
+    def test_real_suspend_sets_a_cooldown_that_blocks_the_next_poll(self):
+        log = write_log(self.dir, "main.log", rotation_only_log())
+        runner, out = FakeRunner(), []
+        monitor, clock = self.monitor(log, runner, out.append)
+        monitor.on_line("IDLE")
+        monitor.evaluate()
+        self.assertEqual(len(runner.suspend_calls()), 1)
+        self.assertEqual(monitor.cooldown_until, NOW + helper.SUSPEND_COOLDOWN_SECONDS)
+        self.assertEqual(monitor.grace_until, 0.0)
+        clock.now += 60
+        with mock.patch.object(helper, "read_activity") as read:
+            monitor.evaluate()
+        self.assertEqual(len(runner.suspend_calls()), 1)
+        self.assertEqual(read.call_count, 0)
+        self.assertIn("suspend already requested", out)
+
+    def test_suspend_can_happen_again_once_the_cooldown_has_passed(self):
+        log = write_log(self.dir, "main.log", rotation_only_log())
+        runner, out = FakeRunner(), []
+        monitor, clock = self.monitor(log, runner, out.append)
+        monitor.on_line("IDLE")
+        monitor.evaluate()
+        clock.now = monitor.cooldown_until
+        monitor.evaluate()
+        self.assertEqual(len(runner.suspend_calls()), 2)
+
+    def test_failed_suspend_call_still_sets_the_cooldown(self):
+        log = write_log(self.dir, "main.log", rotation_only_log())
+        runner, out = FakeRunner(suspend_returncode=1), []
+        monitor, clock = self.monitor(log, runner, out.append)
+        monitor.on_line("IDLE")
+        monitor.evaluate()
+        self.assertTrue(any(msg.startswith("suspend failed") for msg in out))
+        self.assertEqual(monitor.cooldown_until, NOW + helper.SUSPEND_COOLDOWN_SECONDS)
+        clock.now += 60
+        monitor.evaluate()
+        self.assertEqual(len(runner.suspend_calls()), 1)
+        self.assertIn("suspend already requested", out)
+
+    def test_dry_run_never_sets_the_cooldown(self):
+        log = write_log(self.dir, "main.log", rotation_only_log())
+        runner, out = FakeRunner(), []
+        monitor, clock = self.monitor(log, runner, out.append, dry_run=True)
+        monitor.on_line("IDLE")
+        monitor.evaluate()
+        clock.now += 60
+        monitor.evaluate()
+        self.assertEqual(monitor.cooldown_until, 0.0)
+        self.assertEqual(runner.suspend_calls(), [])
+        self.assertEqual(out.count("would suspend: only Claude rotation claims for 3600s"), 2)
+        self.assertFalse(any("suspend already requested" in msg for msg in out))
 
     def test_claude_log_is_not_read_when_another_app_blocks(self):
         log = write_log(self.dir, "main.log", rotation_only_log())

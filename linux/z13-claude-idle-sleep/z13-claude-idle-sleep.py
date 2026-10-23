@@ -17,6 +17,7 @@ from collections import namedtuple
 IDLE_SECONDS = 3600
 POLL_SECONDS = 60
 GRACE_SECONDS = 600
+SUSPEND_COOLDOWN_SECONDS = 180
 RESUME_JUMP_SECONDS = 5
 ROTATION_TIMEOUT_SECONDS = 330
 ROTATION_MIN_MS = 299000
@@ -220,12 +221,14 @@ def analyse(lines, now, idle_seconds, read_ok=True):
     return Activity(last_real, list(dict.fromkeys(holds.values())), history_ok)
 
 
-def decide(now, idle, grace_until, inhibitions, activity, idle_seconds):
-    """Return (suspend, reason) for one evaluation, checking in the order the plan lists."""
+def decide(now, idle, grace_until, inhibitions, activity, idle_seconds, cooldown_until=0.0):
+    """Return (suspend, reason) for one evaluation, checking in the order the plan lists with the suspend cooldown after grace."""
     if not idle:
         return False, "not idle"
     if now < grace_until:
         return False, "grace period after resume"
+    if now < cooldown_until:
+        return False, "suspend already requested"
     if inhibitions is None:
         return False, "inhibitions unreadable"
     if not inhibitions:
@@ -311,6 +314,7 @@ class Monitor:
         self.dry_run = dry_run
         self.idle = False
         self.grace_until = 0.0
+        self.cooldown_until = 0.0
         self.prev_delta = None
         self.last_reason = None
 
@@ -328,9 +332,10 @@ class Monitor:
         self.prev_delta = delta
         inhibitions = read_inhibitions(self.deps.run) if self.idle else None
         activity = None
-        if self.idle and now >= self.grace_until and inhibitions and all(r.app == CLAUDE_APP for r in inhibitions):
+        if self.idle and now >= self.grace_until and now >= self.cooldown_until and inhibitions and all(r.app == CLAUDE_APP for r in inhibitions):
             activity = read_activity(self.log_path, now, self.idle_seconds)
-        suspend_now, reason = decide(now, self.idle, self.grace_until, inhibitions, activity, self.idle_seconds)
+        suspend_now, reason = decide(now, self.idle, self.grace_until, inhibitions, activity, self.idle_seconds,
+                                     self.cooldown_until)
         if reason != self.last_reason:
             self.deps.out(reason)
             self.last_reason = reason
@@ -341,6 +346,7 @@ class Monitor:
         else:
             self.deps.out(f"suspend: {reason}")
             call_suspend(self.deps.run, self.deps.out)
+            self.cooldown_until = now + SUSPEND_COOLDOWN_SECONDS
 
 
 class LineSplitter:
