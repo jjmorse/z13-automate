@@ -1,0 +1,14 @@
+[Unit]
+Description=Hold the Performance power profile while chosen Steam games run on AC
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/z13-game-profile
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=graphical-session.target
