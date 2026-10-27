@@ -548,16 +548,6 @@ class ServiceTests(PanelTestCase):
         self.assertTrue(os.path.exists(self.state_file))
         self.assertEqual(self.lines, ["would restore panel 23 to 30 and delete the state file"])
 
-    def test_restore_waits_while_two_screens_are_connected(self):
-        helper.save_state(self.state_file, 23, 30)
-        self.bus.heights[23] = 48
-        self.bus.tablet = False
-        self.set_screens(2)
-        self.service().evaluate()
-        self.assertEqual(self.bus.writes_attempted(), [])
-        self.assertTrue(os.path.exists(self.state_file))
-        self.assertEqual(self.lines, ["2 screens connected: panel 23 keeps its tablet height and the state file is kept until the laptop is the only screen"])
-
     def test_signal_ends_the_loop_and_restores_the_panel(self):
         helper.save_state(self.state_file, 23, 30)
         self.bus.heights[23] = 48
@@ -567,20 +557,148 @@ class ServiceTests(PanelTestCase):
         self.assertFalse(os.path.exists(self.state_file))
         self.assertEqual(self.lines[-1], "service stopping: restored panel 23 to 30")
 
-    def test_stop_with_two_screens_keeps_the_state_file(self):
-        helper.save_state(self.state_file, 23, 30)
-        self.bus.heights[23] = 48
-        self.set_screens(2)
-        self.assertEqual(self.run_main(*self.common_args()), 0)
-        self.assertEqual(self.bus.heights[23], 48)
-        self.assertTrue(os.path.exists(self.state_file))
-        self.assertEqual(self.lines[-1], "stopping with 2 screens connected: panel 23 keeps its tablet height and the state file is kept")
-
     def test_missing_session_bus_exits_1(self):
         bus = self.new_bus()
         bus.subscribe_error = BusError("no session bus")
         self.assertEqual(self.run_main(*self.common_args(), bus=bus), 1)
         self.assertEqual(self.lines, ["cannot reach the session bus: no session bus"])
+
+
+class DockedRestoreTests(PanelTestCase):
+    """While other screens are connected, the saved panel is restored only when appletsrc still names it as the one panel on screen 0."""
+
+    def save_tall_panel(self, panel_id=23, original=30):
+        helper.save_state(self.state_file, panel_id, original)
+        self.bus.heights[panel_id] = 48
+        self.set_screens(2)
+
+    def test_docked_restore_with_tablet_off_restores_and_deletes_the_state(self):
+        self.save_tall_panel()
+        self.bus.tablet = False
+        self.service().evaluate()
+        self.assertEqual(self.bus.heights[23], 30)
+        self.assertFalse(os.path.exists(self.state_file))
+        self.assertEqual(self.bus.scripts, [helper.write_script(23, 30), helper.read_script(23)])
+        self.assertEqual(self.lines, ["tablet mode off with 2 screens connected: restored panel 23 to 30"])
+
+    def test_docked_restore_with_tablet_on_restores_and_never_grows(self):
+        self.save_tall_panel()
+        self.service().evaluate()
+        self.assertEqual(self.bus.heights[23], 30)
+        self.assertFalse(os.path.exists(self.state_file))
+        self.assertEqual(self.bus.writes_attempted(), ["panelById(23).height = 30"])
+        self.assertEqual(self.lines, ["tablet mode on with 2 screens connected: restored panel 23 to 30"])
+
+    def test_docked_without_state_never_touches_the_bus(self):
+        self.set_screens(2)
+        for tablet in (True, False):
+            with self.subTest(tablet=tablet):
+                self.bus.tablet = tablet
+                self.service().evaluate()
+        self.assertEqual(self.bus.scripts, [])
+        self.assertFalse(os.path.exists(self.state_file))
+
+    def test_docked_state_for_another_panel_keeps_the_state_and_makes_no_panel_call(self):
+        helper.save_state(self.state_file, 24, 30)
+        self.bus.tablet = False
+        self.set_screens(2)
+        self.service().evaluate()
+        self.assertEqual(self.bus.scripts, [])
+        self.assertTrue(os.path.exists(self.state_file))
+        self.assertEqual(self.lines, ["2 screens connected: the state file is for panel 24 but the screen-0 panel is 23; the panel is left alone and the state file is kept"])
+
+    def test_docked_unreadable_or_unusable_appletsrc_keeps_the_state_and_makes_no_panel_call(self):
+        self.save_tall_panel()
+        self.bus.tablet = False
+        ambiguous = os.path.join(self.root, "ambiguous-appletsrc")
+        write_file(ambiguous, REALISTIC_APPLETSRC + "\n[Containments][58]\nlastScreen=0\nplugin=org.kde.panel\n")
+        no_screen_zero = os.path.join(self.root, "no-screen-zero-appletsrc")
+        write_file(no_screen_zero, "[Containments][41]\nlastScreen=1\nplugin=org.kde.panel\n")
+        missing = os.path.join(self.root, "missing-appletsrc")
+        directory = os.path.join(self.root, "appletsrc-directory")
+        os.makedirs(directory)
+        cases = [
+            (ambiguous, "2 panels on screen 0 in the appletsrc file (23, 58)"),
+            (no_screen_zero, "no panel on screen 0 in the appletsrc file"),
+            (missing, f"cannot read {missing} (No such file or directory)"),
+            (directory, f"cannot read {directory} (Is a directory)"),
+        ]
+        for path, reason in cases:
+            with self.subTest(reason=reason):
+                self.lines.clear()
+                self.service(self.config(appletsrc=path)).evaluate()
+                self.assertEqual(self.lines, [f"2 screens connected: {reason}; the panel is left alone and the state file is kept"])
+        self.assertEqual(self.bus.scripts, [])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+
+    def test_screen_zero_keeps_the_state_and_makes_no_panel_call(self):
+        self.save_tall_panel()
+        self.set_screens(0)
+        for tablet in (True, False):
+            with self.subTest(tablet=tablet):
+                self.bus.tablet = tablet
+                self.lines.clear()
+                self.service().evaluate()
+                self.assertEqual(self.lines, ["0 screens connected: panel 23 keeps its tablet height and the state file is kept until a screen is connected"])
+        self.assertEqual(self.bus.scripts, [])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+
+    def test_docked_failed_write_keeps_the_state_and_retries_on_the_next_check(self):
+        self.save_tall_panel()
+        self.bus.tablet = False
+        self.bus.fail_writes = 1
+        svc = self.service()
+        svc.evaluate()
+        self.assertEqual(self.lines, ["cannot restore panel 23 to 30, keeping the state file: write refused"])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+        svc.evaluate()
+        self.assertEqual(self.bus.heights[23], 30)
+        self.assertFalse(os.path.exists(self.state_file))
+        self.assertEqual(self.lines[-1], "tablet mode off with 2 screens connected: restored panel 23 to 30")
+
+    def test_docked_dry_run_writes_nothing_and_keeps_the_state(self):
+        self.save_tall_panel()
+        self.bus.tablet = False
+        self.service(self.config(dry_run=True)).evaluate()
+        self.assertEqual(self.bus.scripts, [])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+        self.assertEqual(self.lines, ["would restore panel 23 to 30 and delete the state file"])
+
+    def test_stop_while_docked_restores_the_saved_panel(self):
+        helper.save_state(self.state_file, 23, 30)
+        self.bus.heights[23] = 48
+        self.scheduler.on_run = lambda: self.set_screens(2)
+        self.assertEqual(self.run_main(*self.common_args()), 0)
+        self.assertEqual(self.bus.heights[23], 30)
+        self.assertFalse(os.path.exists(self.state_file))
+        self.assertEqual(self.lines, [
+            "tablet mode on: panel 23 is at 48; original height 30 is in the state file",
+            "service stopping: restored panel 23 to 30",
+        ])
+
+    def test_stop_while_docked_keeps_the_state_when_the_saved_panel_differs(self):
+        helper.save_state(self.state_file, 24, 30)
+        self.bus.heights[23] = 48
+        self.scheduler.on_run = lambda: self.set_screens(2)
+        self.assertEqual(self.run_main(*self.common_args()), 0)
+        self.assertEqual(self.bus.scripts, [])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+        self.assertEqual(self.lines[-1], "stopping with 2 screens connected: the state file is for panel 24 but the screen-0 panel is 23; the panel is left alone and the state file is kept")
+
+    def test_stop_with_no_screens_keeps_the_state_file(self):
+        helper.save_state(self.state_file, 23, 30)
+        self.bus.heights[23] = 48
+        self.scheduler.on_run = lambda: self.set_screens(0)
+        self.assertEqual(self.run_main(*self.common_args()), 0)
+        self.assertEqual(self.bus.writes_attempted(), [])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+        self.assertEqual(self.lines[-1], "stopping with 0 screens connected: panel 23 keeps its tablet height and the state file is kept")
 
 
 class StatusTests(PanelTestCase):
@@ -628,6 +746,45 @@ class StatusTests(PanelTestCase):
         self.assertEqual(self.lines[0], "tablet mode: unknown (no session bus)")
         self.assertIn("panel height: not queried, org.kde.plasmashell is not on the bus", self.lines)
         self.assertEqual(bus.scripts, [])
+
+    def test_status_docked_with_the_saved_panel_describes_the_restore_without_querying(self):
+        helper.save_state(self.state_file, 23, 30)
+        self.bus.heights[23] = 48
+        self.bus.tablet = False
+        self.set_screens(2)
+        self.assertEqual(self.run_main("--status", *self.common_args()), 0)
+        self.assertEqual(self.bus.scripts, [])
+        self.assertEqual(self.lines, [
+            "tablet mode: off",
+            "connected screens: 2",
+            "panel id: 23",
+            "state file: present (panel 23, original height 30)",
+            "panel height: not queried, 2 screens are connected",
+            "would do: restore panel 23 to 30 and delete the state file (the saved screen-0 panel)",
+        ])
+        self.assertEqual(self.bus.heights[23], 48)
+        self.assertTrue(os.path.exists(self.state_file))
+
+    def test_status_docked_with_another_panel_or_no_detection_says_nothing_happens(self):
+        helper.save_state(self.state_file, 24, 30)
+        self.set_screens(2)
+        self.assertEqual(self.run_main("--status", *self.common_args()), 0)
+        self.assertEqual(self.bus.scripts, [])
+        self.assertEqual(self.lines[-1], "would do: nothing, the state file is for panel 24 but the screen-0 panel is 23, so the saved state is kept")
+        write_file(self.appletsrc, REALISTIC_APPLETSRC + "\n[Containments][58]\nlastScreen=0\nplugin=org.kde.panel\n")
+        self.lines.clear()
+        self.assertEqual(self.run_main("--status", *self.common_args()), 0)
+        self.assertEqual(self.bus.scripts, [])
+        self.assertIn("panel id: none (2 panels on screen 0 in the appletsrc file (23, 58))", self.lines)
+        self.assertEqual(self.lines[-1], "would do: nothing, 2 panels on screen 0 in the appletsrc file (23, 58), so the saved state is kept")
+
+    def test_status_docked_without_plasmashell_says_it_waits(self):
+        helper.save_state(self.state_file, 23, 30)
+        self.set_screens(2)
+        bus = self.new_bus(tablet=False, plasmashell=False)
+        self.assertEqual(self.run_main("--status", *self.common_args(), bus=bus), 0)
+        self.assertEqual(bus.scripts, [])
+        self.assertEqual(self.lines[-1], f"would do: nothing until {helper.PLASMASHELL} is on the bus, then restore panel 23 to 30 (the saved screen-0 panel)")
 
 
 class MainTests(PanelTestCase):

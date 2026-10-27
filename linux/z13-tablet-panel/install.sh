@@ -42,7 +42,7 @@ if [ "$UNINSTALL" -eq 1 ]; then
     run rm -f "$UNIT_DIR/z13-tablet-panel.service" "$SCRIPT_DST"
     run systemctl --user daemon-reload
     if [ -e "$STATE_FILE" ]; then
-        echo "warning: $STATE_FILE is still there, so the panel may still be tablet-sized (the laptop was not the only screen when the service stopped). Set the panel height back by hand in Plasma Edit Mode, then delete that file."
+        echo "warning: $STATE_FILE is still there, so the panel may still be tablet-sized (the service could not restore it when it stopped). Set the panel height back by hand in Plasma Edit Mode, then delete that file."
     fi
     echo "Nothing else was changed."
     exit 0

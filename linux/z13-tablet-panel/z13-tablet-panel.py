@@ -149,6 +149,24 @@ def detect_panel(text):
     return ids[0], None
 
 
+def read_panel(path):
+    """Return (panel_id, None) for the single panel on screen 0 in the applet config at path, otherwise (None, reason)."""
+    try:
+        text = read_appletsrc(path)
+    except OSError as err:
+        return None, f"cannot read {path} ({err.strerror})"
+    return detect_panel(text)
+
+
+def docked_block(state, panel_id, panel_problem):
+    """Return None when the saved panel is still the single panel on screen 0, so it may be restored while other screens are connected; otherwise the reason to wait."""
+    if panel_problem is not None:
+        return panel_problem
+    if panel_id != state.panel_id:
+        return f"the state file is for panel {state.panel_id} but the screen-0 panel is {panel_id}"
+    return None
+
+
 def load_state(path):
     """Return (State or None, problem or None); a missing file is (None, None)."""
     try:
@@ -244,12 +262,7 @@ class Service:
     def bring_up(self, state):
         """Make the laptop panel tablet-sized, saving its original height first unless the state file already has one."""
         config = self.config
-        try:
-            text = read_appletsrc(config.appletsrc)
-        except OSError as err:
-            self.say("panel", f"cannot read {config.appletsrc} ({err.strerror}); the panel is left alone")
-            return
-        panel_id, problem = detect_panel(text)
+        panel_id, problem = read_panel(config.appletsrc)
         if problem is not None:
             self.say("panel", f"{problem}; the panel is left alone")
             return
@@ -293,17 +306,31 @@ class Service:
         self.say("decision", f"tablet mode on: panel {panel_id} set to {target}; original height {original} is in the state file")
 
     def bring_down(self, state, tablet_on, screens):
-        """Put the panel back to its original height, but only while the laptop is the only screen."""
+        """Put the panel back to its original height: when the laptop is the only screen, or while other screens are connected and the saved panel is still the single panel on screen 0."""
         if state is None:
             if tablet_on:
                 self.say("decision", f"tablet mode on but {screens} screens are connected: the panel is left alone")
             else:
                 self.say("decision", "tablet mode off: nothing to restore")
             return
-        if screens != 1:
-            self.say("decision", f"{screens} screens connected: panel {state.panel_id} keeps its tablet height and the state file is kept until the laptop is the only screen")
+        if screens == 0:
+            self.say("decision", f"0 screens connected: panel {state.panel_id} keeps its tablet height and the state file is kept until a screen is connected")
             return
-        self.restore(state, "tablet mode off")
+        if screens == 1:
+            self.restore(state, "tablet mode off")
+            return
+        block = self.check_docked(state)
+        if block is not None:
+            self.say("dock", f"{screens} screens connected: {block}; the panel is left alone and the state file is kept")
+            return
+        self.clear("dock")
+        mode = "tablet mode on" if tablet_on else "tablet mode off"
+        self.restore(state, f"{mode} with {screens} screens connected")
+
+    def check_docked(self, state):
+        """Return None when the saved panel may be restored while other screens are connected, otherwise why not; it reads the appletsrc file and never the bus."""
+        panel_id, problem = read_panel(self.config.appletsrc)
+        return docked_block(state, panel_id, problem)
 
     def restore(self, state, reason):
         """Write the saved height back and delete the state file; a failure keeps the state file for the next check."""
@@ -326,7 +353,7 @@ class Service:
         self.say("decision", f"{reason}: restored panel {panel_id} to {original}")
 
     def stop(self):
-        """On SIGTERM or SIGINT, put the saved height back if the laptop is the only screen; otherwise keep the state file."""
+        """On SIGTERM or SIGINT, put the saved height back when the laptop is the only screen, or while other screens are connected and the saved panel is still the single panel on screen 0; otherwise keep the state file and say why."""
         state, problem = load_state(self.config.state_file)
         if problem is not None:
             self.out(f"{problem}; the panel is left alone")
@@ -334,9 +361,14 @@ class Service:
         if state is None:
             return
         screens = count_connected(self.config.drm_root)
-        if screens != 1:
-            self.out(f"stopping with {screens} screens connected: panel {state.panel_id} keeps its tablet height and the state file is kept")
+        if screens == 0:
+            self.out(f"stopping with 0 screens connected: panel {state.panel_id} keeps its tablet height and the state file is kept")
             return
+        if screens != 1:
+            block = self.check_docked(state)
+            if block is not None:
+                self.out(f"stopping with {screens} screens connected: {block}; the panel is left alone and the state file is kept")
+                return
         self.restore(state, "service stopping")
 
 
@@ -360,10 +392,17 @@ def describe_next(tablet, plasma_up, screens, panel_id, panel_problem, state, st
         if state is None:
             return f"save height {height} as the original, then set panel {panel_id} to {target}"
         return f"set panel {panel_id} to {target}, keeping the saved original height {state.original_height}"
-    if state is not None and screens != 1:
-        return f"nothing, {screens} screens are connected, so the saved state is kept"
     if state is None:
         return "nothing to restore" if tablet is False else f"nothing, {screens} screens are connected"
+    if screens == 0:
+        return f"nothing, {screens} screens are connected, so the saved state is kept"
+    if screens != 1:
+        block = docked_block(state, panel_id, panel_problem)
+        if block is not None:
+            return f"nothing, {block}, so the saved state is kept"
+        if not plasma_up:
+            return f"nothing until {PLASMASHELL} is on the bus, then restore panel {state.panel_id} to {state.original_height} (the saved screen-0 panel)"
+        return f"restore panel {state.panel_id} to {state.original_height} and delete the state file (the saved screen-0 panel)"
     if not plasma_up:
         return f"nothing until {PLASMASHELL} is on the bus, then restore panel {state.panel_id} to {state.original_height}"
     return f"restore panel {state.panel_id} to {state.original_height} and delete the state file"
@@ -380,12 +419,7 @@ def run_status(config, bus, out):
     else:
         out(f"tablet mode: {'on' if tablet is True else 'off'}")
     out(f"connected screens: {screens}")
-    try:
-        text = read_appletsrc(config.appletsrc)
-    except OSError as err:
-        panel_id, panel_problem = None, f"cannot read {config.appletsrc} ({err.strerror})"
-    else:
-        panel_id, panel_problem = detect_panel(text)
+    panel_id, panel_problem = read_panel(config.appletsrc)
     out(f"panel id: {panel_id}" if panel_id is not None else f"panel id: none ({panel_problem})")
     state, state_problem = load_state(config.state_file)
     if state_problem is not None:

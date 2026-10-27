@@ -1,15 +1,17 @@
 # z13-tablet-panel
 
-This package makes the laptop's Plasma panel taller for touch while the Z13 is in tablet mode and the laptop is the only connected screen. When tablet mode ends, when another screen is connected, or when the service stops, it puts the saved height back. It is written for an ASUS ROG Flow Z13 (GZ302EA) running KDE Plasma 6; other setups are untested.
+This package makes the laptop's Plasma panel taller for touch while the Z13 is in tablet mode and the laptop is the only connected screen. When tablet mode ends or the service stops, it puts the saved height back. While other screens are connected, it puts the height back only for the saved panel, and only when that panel is still the single panel on screen 0. It is written for an ASUS ROG Flow Z13 (GZ302EA) running KDE Plasma 6; other setups are untested.
 
 ## What it does
 
 KWin reports tablet mode on the session bus as the `tabletMode` property of `org.kde.KWin.TabletModeManager`, and sends `tabletModeChanged` when it changes. Tablet mode is on while the keyboard folio is detached. The service wants a tablet-sized panel when tablet mode is on and exactly one screen is connected. It then sets the panel height through plasmashell's scripting interface (`org.kde.PlasmaShell.evaluateScript`). The change applies live, without restarting plasmashell.
 
-## Why only the laptop's panel, and only when it is alone
+## Which panel is touched, and when
 
-- Only the laptop's panel is changed. With a dock attached, screen 0 is another monitor, so the laptop's panel is no longer the one on screen 0.
-- The service reads and writes the panel only while the laptop is the only connected screen. On Plasma 6.8, calling plasmashell's `panels()` function crashes plasmashell when a panel belongs to a disconnected screen. The service never calls `panels()`, and it never reads a panel while another screen is connected.
+- The service grows the panel only with tablet mode on and the laptop the only connected screen. It never grows the panel while other screens are connected.
+- The service shrinks the panel back to its saved height also while other screens are connected, with tablet mode on or off. It does so only when the appletsrc file still names exactly one panel on screen 0 and that panel's id is the id in the state file. Any other panel is never touched.
+- While other screens are connected, that docked restore reads and writes the saved panel. The panel on screen 0 always has a view while any screen is connected, which is why this is safe. It is reasoned from the Plasma source and has not been tested on hardware.
+- On Plasma 6.8, calling plasmashell's `panels()` function crashes plasmashell when a panel belongs to a disconnected screen. The service never calls `panels()`, and it only ever uses `panelById` with the saved id.
 
 ## How the panel is found
 
@@ -23,7 +25,7 @@ Before its first change, the service writes `~/.local/state/z13-tablet-panel/sta
 {"panel_id": 23, "original_height": 30}
 ```
 
-The file is never overwritten while it exists, so after a restart or a crash the true original height is still known. When tablet mode ends and the laptop is the only screen, the service restores the saved height and deletes the file. A stop (SIGTERM or SIGINT) restores the height the same way. If the laptop is not the only screen at that moment, the file is kept, and the restore happens on the next check once the laptop is alone again while the service is running.
+The file is never overwritten while it exists, so after a restart or a crash the true original height is still known. When tablet mode is off and the laptop is the only screen, the service restores the saved height and deletes the file. While other screens are connected, it does the same with tablet mode on or off, but only when the appletsrc check described above passes. A stop (SIGTERM or SIGINT) restores the height when the laptop is the only screen or when that check passes. If neither applies, the file is kept, and the next check or the next start tries again.
 
 ## Options
 
@@ -63,7 +65,7 @@ The installer copies the helper to `~/.local/bin/z13-tablet-panel`, copies the u
 
 ## Check it works
 
-Print tablet mode, the screen count, the panel id, the state file and the panel height, then what the service would do now. It never writes. The panel height is read only when the laptop is the only screen:
+Print tablet mode, the screen count, the panel id, the state file and the panel height, then what the service would do now. It never writes. The panel height is read only when the laptop is the only screen, so it is not queried while other screens are connected:
 
 ```bash
 ~/.local/bin/z13-tablet-panel --status
@@ -89,7 +91,7 @@ Run this from the repository root:
 bash linux/z13-tablet-panel/install.sh --uninstall
 ```
 
-The uninstall stops the service first, which restores the saved height when the laptop is the only screen. It then disables the service and removes the helper and the unit file. If the state file is still there, the installer prints a warning, because the panel may still be tablet-sized.
+The uninstall stops the service first, which restores the saved height if the rules above allow it. It then disables the service and removes the helper and the unit file. If the state file is still there, the installer prints a warning, because the panel may still be tablet-sized.
 
 ## Tests
 
@@ -104,5 +106,5 @@ python3 -B -m unittest -v
 - KDE Plasma 6 only. The service uses plasmashell's Plasma 6 scripting API (`panelById`) and KWin's tablet-mode property.
 - The service trusts Plasma's `lastScreen=0` record to name the laptop's panel. If Plasma puts the laptop's panel on another screen, the service finds no panel or changes a different one.
 - Only the number of connected screens is checked. The service does not check which connector the screen is on.
-- The restore waits for the laptop to be alone. If the service is stopped while a dock is attached, the saved height stays until the service runs again with the laptop alone.
+- The docked restore is reasoned from the Plasma source and has not been tested on hardware. If the appletsrc file no longer names the saved panel as the one on screen 0, the panel and the state file are left alone, so the panel can stay tablet-sized until the laptop is alone or the check passes.
 - A state file that cannot be read is never overwritten or deleted. The service leaves the panel alone and logs why. Delete that file by hand to reset.
