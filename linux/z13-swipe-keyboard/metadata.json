@@ -1,0 +1,11 @@
+{
+    "KPackageStructure": "KWin/Script",
+    "KPlugin": {
+        "Description": "Show the on-screen keyboard when you swipe up from the bottom screen edge",
+        "Id": "z13swipekeyboard",
+        "License": "GPL-2.0-or-later",
+        "Name": "Swipe up for keyboard",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript"
+}
