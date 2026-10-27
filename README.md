@@ -17,6 +17,7 @@ Windows automation and maintenance scripts for the **ASUS ROG Flow Z13 (GZ302EA)
 - **Linux idle sleep for Claude Desktop** — on Linux with KDE Plasma on Wayland, suspends after an hour without keyboard or mouse input, but only when Claude Desktop's keep-awake claims are the only thing blocking sleep. Its log must show nothing else. See `linux/z13-claude-idle-sleep/README.md`.
 - **Linux on-screen keyboard** — on Linux with KDE Plasma on Wayland, runs Onboard (which has Tab, Ctrl and the arrow keys) and shows it only when the keyboard folio is detached and no other keyboard is connected. See `linux/z13-onscreen-keyboard/README.md`.
 - **Linux swipe-up keyboard** — on Linux with KDE Plasma 6, a swipe up from the bottom edge of the touchscreen shows KWin's virtual keyboard. It is a user-level KWin script that needs no input-group access. See `linux/z13-swipe-keyboard/README.md`.
+- **Linux tablet-mode panel** — on Linux with KDE Plasma 6, makes the laptop's panel taller for touch while the keyboard folio is detached and the laptop is the only screen, and puts the saved height back when either changes. See `linux/z13-tablet-panel/README.md`.
 
 ## Quick start (display/power automation)
 
@@ -134,6 +135,7 @@ Everything above is Windows-only. The Linux scripts live under `linux/`, one fol
 | `linux/z13-claude-idle-sleep/` | Suspends the machine after an hour without keyboard or mouse input, but only when Claude Desktop's keep-awake claims are the only thing blocking sleep. Its log must show nothing else, and PowerDevil's own suspend is used. Install with `bash linux/z13-claude-idle-sleep/install.sh`. See its README. |
 | `linux/z13-onscreen-keyboard/` | An on-screen keyboard that follows the keyboard folio. Plasma's own touch keyboard has no Tab, Ctrl or arrow keys, so this runs Onboard under XWayland and a small user service sets Onboard's auto-show from KWin's tablet-mode flag and from the USB and Bluetooth keyboards found in the udev database: it opens on text fields only when the folio is detached and no other keyboard is connected. Electron apps do not report their text fields to Onboard without an accessibility flag, which the README explains. Install with `bash linux/z13-onscreen-keyboard/install.sh`. See its README. |
 | `linux/z13-swipe-keyboard/` | A KWin script that shows KWin's virtual keyboard when you swipe up from the bottom edge of the touchscreen. It is a user-level KWin script: no input-group access and no extra packages. It needs KWin's virtual keyboard enabled, for example Plasma Keyboard. Install with `bash linux/z13-swipe-keyboard/install.sh`. See its README. |
+| `linux/z13-tablet-panel/` | Makes the laptop's Plasma panel taller for touch while the keyboard folio is detached and the laptop is the only screen. It restores the saved height when tablet mode ends or another screen is connected. Install with `bash linux/z13-tablet-panel/install.sh`. See its README. |
 
 ## How the automation triggers
 
