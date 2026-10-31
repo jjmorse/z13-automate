@@ -2,7 +2,7 @@
 
 ## Goal
 
-Every Thursday at 9:00 AM, copy `C:\Users\USER\Documents\Kaija.pdf` to `\\NAS\share\Character sheets\` as `Kaija YYYY.MM.DD.pdf`, dated the previous Wednesday, but only if its contents differ from the newest sheet already on the NAS.
+Every Thursday at 9:00 AM, copy `%USERPROFILE%\Documents\Kaija.pdf` to `<NAS share>\` as `Kaija YYYY.MM.DD.pdf`, dated the previous Wednesday, but only if its contents differ from the newest sheet already on the NAS.
 
 ## Design
 

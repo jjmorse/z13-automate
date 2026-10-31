@@ -1,16 +1,21 @@
 # Re-apply the coworkUserFilesPath fix if Claude Desktop overwrites it.
 #
-# Background: the profile migration (old user name -> current user name) left
-# claude_desktop_config.json pointing coworkUserFilesPath at the OLD profile
-# (C:\Users\OLDUSER\Claude). Claude Desktop rewrites this file on exit, so an
-# edit made while the app is RUNNING can be clobbered.
+# Background: a profile migration (old user name -> the current one) left claude_desktop_config.json pointing coworkUserFilesPath at the OLD profile (C:\Users\<old user name>\Claude). Claude Desktop rewrites this file on exit, so an edit made while the app is RUNNING can be clobbered.
 #
 # BEST PRACTICE: quit Claude Desktop completely, THEN run this.
+#
+#   powershell -ExecutionPolicy Bypass -File "<this file>" -OldProfile 'C:\Users\<old user name>\Claude'
+#
+# -OldProfile is required: the OLD Claude folder, in the form C:\Users\<old user name>\Claude.
+
+param([string]$OldProfile)
 
 $ErrorActionPreference = 'Stop'
+if (-not $OldProfile) { Write-Host "STOP: -OldProfile is required, e.g. -OldProfile 'C:\Users\<old user name>\Claude'" -ForegroundColor Red; exit 1 }
 $cfg = "$env:APPDATA\Claude\claude_desktop_config.json"
-$OLD = 'C:\\Users\\OLDUSER\\Claude'      # doubled backslashes = JSON-escaped
-$NEW = 'C:\\Users\\USER\\Claude'
+# The config stores paths JSON-escaped (every backslash doubled), so escape both folders the same way.
+$OLD = $OldProfile.Replace('\', '\\')
+$NEW = "$env:USERPROFILE\Claude".Replace('\', '\\')
 
 if (-not (Test-Path $cfg)) { Write-Host "config not found: $cfg" -ForegroundColor Red; exit 1 }
 

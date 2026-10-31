@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = 'Stop'
 $taskName = 'Display Power Profile'
-$script   = 'C:\Users\USER\OneDrive\Documents\Claude\apply-display-power.ps1'
+$script   = Join-Path $env:USERPROFILE 'OneDrive\Documents\Claude\apply-display-power.ps1'
 
 if (-not (Test-Path $script)) { Write-Host "STOP: $script not found" -ForegroundColor Red; exit 1 }
 

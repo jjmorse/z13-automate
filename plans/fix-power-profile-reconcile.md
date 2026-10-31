@@ -24,7 +24,7 @@ Changes in `Z13Tray.ps1` only (do NOT change `Z13Display.psm1` apply logic):
 
 ## Constraints
 - **Pure ASCII in all .ps1 files** -- PowerShell 5.1 reads BOM-less .ps1 as ANSI; em-dashes/curly quotes/Unicode break string literals (module already warns about this). Use `->` not arrows, straight quotes only.
-- Work in the LOCAL repo `C:\Users\USER\Documents\Claude\Z13 Automate` (authoritative; the running tray launches from here). Ignore the OneDrive copy.
+- Work in the LOCAL repo `%USERPROFILE%\Documents\Claude\Z13 Automate` (authoritative; the running tray launches from here). Ignore the OneDrive copy.
 - Branch `fix-power-profile-reconcile` (already created). Never commit to main; no merge/push without approval.
 - Do NOT kill or restart the running tray (PID 43544) -- the orchestrator will restart it for testing with the user's consent.
 

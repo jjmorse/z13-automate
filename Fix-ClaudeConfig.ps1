@@ -1,7 +1,6 @@
 # Fix two leftovers in claude_desktop_config.json. RUN WITH CLAUDE DESKTOP CLOSED.
 #
-#   1. coworkUserFilesPath still points at the OLD profile (C:\Users\OLDUSER\Claude)
-#      from the old user name -> current user name migration.
+#   1. coworkUserFilesPath still points at the OLD profile (C:\Users\<old user name>\Claude), left over from the profile migration (old user name -> the current one).
 #   2. The "acc" MCP server fails on Windows with:
 #         'C:\Program' is not recognized as an internal or external command
 #      Claude launches MCP servers through cmd.exe, and a bare "npx" command can
