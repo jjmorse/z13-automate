@@ -1,0 +1,14 @@
+[Unit]
+Description=Make the laptop panel taller for touch while the keyboard is detached and the laptop is the only screen
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/z13-tablet-panel
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=graphical-session.target
