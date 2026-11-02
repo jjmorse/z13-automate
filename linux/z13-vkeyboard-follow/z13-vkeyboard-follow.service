@@ -1,0 +1,14 @@
+[Unit]
+Description=Hide the on-screen keyboard while the keyboard folio is attached
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/z13-vkeyboard-follow
+Restart=on-failure
+RestartSec=3
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=graphical-session.target
