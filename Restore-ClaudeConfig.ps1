@@ -11,7 +11,7 @@
 #
 # Strategy: merge. Take the PRE-FIX backup (which has the full mcpServers
 # block + all the preference keys) as the base, but:
-#   - keep coworkUserFilesPath pointed at the CURRENT (correct) path
+#   - keep coworkUserFilesPath pointed at the CURRENT (correct) profile path
 #   - apply the cmd /c npx wrapper fix to the acc MCP server
 #   - overlay any preference keys the CURRENT file has that the backup lacks
 

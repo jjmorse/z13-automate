@@ -73,8 +73,33 @@ The tests use fake sysfs trees and fake monitor data, including the swapped-conn
 
 ## Known limits
 
-- **Not yet seen through a real sleep:** both pieces were checked against a live machine read-only and by unit tests, but a real sleep and wake with the dock attached has not happened since they were written.
-- **USB revive:** the "dead" signature (runtime status `active` with a power state other than `D0`) was seen once, on one controller. The remove and rescan is the software equivalent of the replug that worked, but it has not been run on a dead controller yet. If it fails, the log says a replug is needed.
+- **USB revive:** the service has now run after a real overnight sleep. Two of the dock's three USB controllers (Fresco FL1100) had died on resume with "Controller not ready at resume -19" and "HC died". The service removed each one and rescanned its parent bridge, but they did not come back within its 15 seconds, so it logged that a replug was needed. Replugging the dock fixed it. So the software replug does not reliably revive a dead controller.
+- **Resume outcome varies:** on a later wake the PCIe link to the dock went down and came back up during resume (kernel log: `pciehp: Slot(0): Link Down`, then `Link Up`), and the controllers re-enumerated by themselves within about a second. So the outcome after resume varies between wakes.
+- **Monitors after resume:** the monitor restore only helps once a monitor is detected. After some wakes a monitor on the dock is detected as a 640x480 ghost output (`EDID err: 2` in the kernel log) or not at all, until its DisplayPort cable is replugged at the dock. The tool cannot fix that.
 - **Identical monitors:** two monitors of the same model with no serial number cannot be told apart.
 - **What it restores:** mode, rotation, scale, position and priority. Not HDR, color profiles or per-monitor brightness.
 - **Windows:** when monitors disappear and come back, KDE moves windows. This tool restores where monitors are, not where windows were.
+
+## What was tried and did not help
+
+- A udev rule forbidding the D3cold power state and runtime suspend for the dock's USB controllers and Thunderbolt bridges. The idea was that they dropped into D3cold and did not power up in time. It did not prevent the failure: the next wake showed the PCIe link dropping and re-forming at resume, with no D3cold involved. It was removed.
+- Raising the Thunderbolt driver's DisplayPort receiver timeout (`thunderbolt` module parameter `dprx_timeout`, here 30000) did not stop the DisplayPort tunnels failing.
+
+## Possible upstream fixes (none ready to apply)
+
+No ready-made kernel patch is known for the s2idle (suspend-to-idle) resume failure. The links below are leads only.
+
+- [thunderbolt: fix S4 (hibernate) resume incongruities](https://patchew.org/linux/20260106053749.61440-1-superm1@kernel.org): concerns hibernate resume only, and the reporter's problem was resolved a different way.
+- [thunderbolt: re-add DP resources on resume](https://patchew.org/linux/20250917082456.1790252-1-lijiayi@kylinos.cn): an unmerged 2025 request-for-comments patch, tested on a different platform and an old kernel. It is relevant only because its symptom (DisplayPort tunnel not re-created after resume, "no suitable DP IN adapter available") resembles a dock monitor staying blank after resume.
+- [Kernel bug 219748](https://bugzilla.kernel.org/show_bug.cgi?id=219748): a dock whose displays have EDID read failures with AMD GPUs.
+- [amdgpu VPE idle timeout](https://lists.freedesktop.org/archives/amd-gfx/2025-August/129442.html): a Strix Halo resume freeze fix, a different symptom.
+
+### Collecting a trace for a bug report
+
+The next step is to turn on Thunderbolt driver debug logging before the next sleep, keep the kernel log from the resume, and report it to the kernel's Thunderbolt/USB4 maintainers. Turn the logging on with:
+
+```bash
+sudo sh -c "echo 'module thunderbolt +p' > /sys/kernel/debug/dynamic_debug/control"
+```
+
+The setting resets at reboot, and the debug messages then show up in `journalctl -k`.
