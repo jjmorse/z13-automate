@@ -56,6 +56,15 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 - **DockDeviceMatch** — text that identifies the dock by its PnP device name. `TS3 Plus` matches "Thunderbolt 3(TM) Router, CalDigit. Inc. - TS3 Plus".
 - **SpeakerEndpointMatch** — text that identifies the speaker endpoint to mute. `Realtek` matches "Speakers (Realtek(R) Audio)". If it matches zero or several playback devices, nothing is muted.
 
+## Local settings
+
+Some scripts need a value that belongs to this PC, such as a NAS folder. Those values go in `local-settings.json`, next to the scripts. The file is listed in `.gitignore`, so git ignores it. To set it up, copy `local-settings.example.json` to `local-settings.json` and replace the placeholder values, keeping the backslashes doubled as in the example.
+
+- **KaijaBackupDestination** — the folder that `Backup-KaijaSheet.ps1` copies the character sheet into.
+- **CalibreMirrorDestination** — the folder that `Sync-CalibreLibrary.ps1` mirrors the local Calibre library to.
+
+A script that needs a key stops and writes the fix to its log when the file or the key is missing or empty.
+
 ## Files
 
 ### Display / power automation
@@ -79,7 +88,7 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 | File | Role |
 |---|---|
 | `Fix-ClaudeConfig.ps1` | Fix stale user-files path **and** wrap `npx` MCP commands in `cmd /c`. |
-| `Fix-ClaudeUserFilesPath.ps1` | Re-point `coworkUserFilesPath` after a profile rename. |
+| `Fix-ClaudeUserFilesPath.ps1` | Re-point `coworkUserFilesPath` after a profile rename. Needs `-OldProfile 'C:\Users\<old user name>\Claude'`. |
 | `Restore-ClaudeConfig.ps1` | Restore config from a known-good backup. |
 | `Restore-And-Lock-ClaudeConfig.ps1` | Restore, then lock the file read-only as a safety net. |
 
@@ -101,7 +110,7 @@ That's it — the tray app starts at logon, and the profile re-applies on every 
 ### Backups
 | File | Role |
 |---|---|
-| `Backup-KaijaSheet.ps1` | Copies `C:\Users\USER\Documents\Kaija.pdf` to `\\NAS\share\Character sheets\Kaija YYYY.MM.DD.pdf`, dated the most recent Wednesday before today, **only if** its SHA-256 differs from the newest `Kaija*.pdf` already there. Never overwrites; verifies the copy by hash; retries every 15 min for up to 8 h if the NAS is unreachable. `-DryRun` reports without copying. Log: `%LOCALAPPDATA%\KaijaSheetBackup\backup.log`. |
+| `Backup-KaijaSheet.ps1` | Copies `%USERPROFILE%\Documents\Kaija.pdf` to `<NAS share>\Kaija YYYY.MM.DD.pdf` (the folder is `KaijaBackupDestination` in `local-settings.json`), dated the most recent Wednesday before today, **only if** its SHA-256 differs from the newest `Kaija*.pdf` already there. Never overwrites; verifies the copy by hash; retries every 15 min for up to 8 h if the NAS is unreachable. `-DryRun` reports without copying. Log: `%LOCALAPPDATA%\KaijaSheetBackup\backup.log`. |
 | `Register-KaijaSheetBackup.ps1` | Creates/updates the **Kaija Sheet Backup** scheduled task: Thursdays 09:00, runs as you (not elevated, so it has your NAS credentials), runs at next wake if the PC was off/asleep. No admin needed. |
 
 ### EmuDeck Cloud Sync

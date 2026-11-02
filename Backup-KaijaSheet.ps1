@@ -2,23 +2,27 @@
 Backup-KaijaSheet.ps1
 Weekly snapshot of the Kaija character sheet to the NAS, dated the previous Wednesday.
 
-Copies C:\Users\USER\Documents\Kaija.pdf to
-\\NAS\share\Character sheets\Kaija YYYY.MM.DD.pdf
-ONLY if its contents (SHA-256) differ from the newest Kaija*.pdf already there.
-Never overwrites an existing file. Run by the "Kaija Sheet Backup" task
-(Thursdays 09:00, see Register-KaijaSheetBackup.ps1). -DryRun reports only.
+Copies %USERPROFILE%\Documents\Kaija.pdf to the folder set as KaijaBackupDestination in local-settings.json, as Kaija YYYY.MM.DD.pdf, ONLY if its contents (SHA-256) differ from the newest Kaija*.pdf already there. Never overwrites an existing file. Run by the "Kaija Sheet Backup" task (Thursdays 09:00, see Register-KaijaSheetBackup.ps1). -DryRun reports only.
+
+local-settings.json sits next to this script and is git-ignored. Copy local-settings.example.json to local-settings.json and set KaijaBackupDestination. The script stops with an error in its log if the file or the key is missing.
 #>
 param([switch]$DryRun)
 
 $ErrorActionPreference = 'Stop'
-$src    = 'C:\Users\USER\Documents\Kaija.pdf'
-$dstDir = '\\NAS\share\Character sheets'
+$src    = Join-Path $env:USERPROFILE 'Documents\Kaija.pdf'
 
 $logDir = Join-Path $env:LOCALAPPDATA 'KaijaSheetBackup'
 New-Item -ItemType Directory -Force $logDir | Out-Null
 $log = Join-Path $logDir 'backup.log'
 # Out-File -Encoding utf8, not Tee-Object: PS 5.1's Tee -Append writes UTF-16 and garbles a mixed log.
 function Note($m){ $line = ('{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m); $line | Out-File -FilePath $log -Append -Encoding utf8; $line }
+
+# Destination comes from local-settings.json next to this script (git-ignored).
+$cfgFile = Join-Path $PSScriptRoot 'local-settings.json'
+$cfgHelp = 'Copy local-settings.example.json to local-settings.json next to this script and set KaijaBackupDestination.'
+if (-not (Test-Path -LiteralPath $cfgFile)) { Note "ABORT: settings file not found: $cfgFile. $cfgHelp"; exit 1 }
+try { $dstDir = (Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json).KaijaBackupDestination } catch { Note "ABORT: cannot read $cfgFile ($($_.Exception.Message)). $cfgHelp"; exit 1 }
+if ([string]::IsNullOrWhiteSpace($dstDir)) { Note "ABORT: KaijaBackupDestination is missing or empty in $cfgFile. $cfgHelp"; exit 1 }
 
 if ($DryRun) { Note 'DRY RUN - nothing will be copied.' }
 
